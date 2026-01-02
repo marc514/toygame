@@ -186,7 +186,7 @@ cython_debug/
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
 #  and can be added to the global gitignore or merged into this file. However, if you prefer, 
 #  you could uncomment the following to ignore the entire vscode folder
-# .vscode/
+.vscode/
 
 # Ruff stuff:
 .ruff_cache/
@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project-specific: 忽略运行示例或本地开发产生的 SQLite 数据库文件
+# pets.db 是运行 `python -m toygame.main` 时创建的演示数据库
+pets.db
+# 忽略根目录下的任何 .db 文件（可按需移除）
+/*.db
