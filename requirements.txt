@@ -1,0 +1,4 @@
+# Runtime requirements
+# 本项目在运行时仅依赖 Python 标准库，因此不需要额外的第三方包。
+# 如果将来添加外部库，请在此处列出，例如：
+# requests>=2.30.0
