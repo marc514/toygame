@@ -5,7 +5,8 @@
 """
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, List, Any
+from datetime import datetime
 
 
 @dataclass
@@ -15,32 +16,97 @@ class Pet:
     字段说明：
         id: 可选的整数，表示数据库分配的主键；在插入数据库后会被设置。
         name: 宠物的名字，用于输出与识别。
-        birth_date: 出生日期的 ISO 字符串（例如 "2026-01-03"），用于判断是否触发生日触发器。
-        gender: 性别标记（例如 "M" 或 "F"），仅用于示例。
+        birth_date: 出生日期的 ISO 字符串（例如 "2026-01-03"）。
+        gender: 性别标记（例如 "M" 或 "F"）。
+        mbti: MBTI 性格代码（如 "INTJ"）。
+        *_trigger_times: 各类触发器的触发时间列表（datetime 列表），由数据库中的 JSON 列解析而来。
     """
 
     id: Optional[int]
     name: str
     birth_date: str
     gender: str
+    mbti: str = ""
+
+    birth_trigger_times: Optional[List[datetime]] = None
+    wakeup_trigger_times: Optional[List[datetime]] = None
+    bed_trigger_times: Optional[List[datetime]] = None
+    breakfast_trigger_times: Optional[List[datetime]] = None
+    lunch_trigger_times: Optional[List[datetime]] = None
+    dinner_trigger_times: Optional[List[datetime]] = None
 
     @staticmethod
-    def from_row(row: Tuple) -> "Pet":
+    def _parse_iso_list(text: Any):
+        """将 JSON 文本或已经是 list 的值转换为 datetime 列表。"""
+        import json
+        if not text:
+            return []
+        if isinstance(text, list):
+            lst = text
+        else:
+            try:
+                lst = json.loads(text)
+            except Exception:
+                return []
+        out = []
+        for s in lst:
+            try:
+                out.append(datetime.fromisoformat(s))
+            except Exception:
+                continue
+        return out
+
+    @staticmethod
+    def from_row(row: Any) -> "Pet":
         """从数据库查询返回的一行构造 `Pet` 实例。
 
-        说明：
-        - 当前实现将 `birth_date` 以 ISO 格式的字符串（例如 "2026-01-03"）存储于数据库的 TEXT 列中；
-        - 为了兼容测试或历史数据，从数据库读出的 `birth_date` 可能是 `str`，也可能是 `datetime.date`（旧行为）；
-          本方法会统一将其转换为 ISO 字符串后赋值给 `Pet.birth_date`。
-
-        Args:
-            row: 数据库查询结果行，预期至少包含 (id, name, birth_date, gender, ...)
-
-        Returns:
-            Pet: 使用统一字符串格式的 birth_date 字段的 Pet 实例。
+        支持 sqlite3.Row 或普通序列（tuple）；期望查询包含以下列（按照常见顺序）::
+            (id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times,
+             breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times)
         """
-        # 只取前四个字段来构造 Pet（忽略触发器相关列）
-        b = row[2]
-        # 现在我们假定数据库中存储的 birth_date 为 ISO 格式字符串（"YYYY-MM-DD"），
-        # 不再做对 datetime.date 等类型的兼容转换。
-        return Pet(id=row[0], name=row[1], birth_date=b, gender=row[3])
+        def _get(r, key, idx):
+            try:
+                return r[key]
+            except Exception:
+                return r[idx]
+
+        b = _get(row, 'birth_date', 2)
+        if not isinstance(b, str):
+            b = str(b)
+
+        pet = Pet(
+            id=_get(row, 'id', 0),
+            name=_get(row, 'name', 1),
+            birth_date=b,
+            gender=_get(row, 'gender', 3),
+            mbti=_get(row, 'mbti', 4) or "",
+        )
+
+        # 解析触发器时间列（若查询包含这些列）
+        # 使用长度判断以兼容仅查询部分列的情况
+        try:
+            pet.birth_trigger_times = Pet._parse_iso_list(_get(row, 'birth_trigger_times', 5))
+        except Exception:
+            pet.birth_trigger_times = []
+        try:
+            pet.wakeup_trigger_times = Pet._parse_iso_list(_get(row, 'wakeup_trigger_times', 6))
+        except Exception:
+            pet.wakeup_trigger_times = []
+        try:
+            pet.bed_trigger_times = Pet._parse_iso_list(_get(row, 'bed_trigger_times', 7))
+        except Exception:
+            pet.bed_trigger_times = []
+        try:
+            pet.breakfast_trigger_times = Pet._parse_iso_list(_get(row, 'breakfast_trigger_times', 8))
+        except Exception:
+            pet.breakfast_trigger_times = []
+        try:
+            pet.lunch_trigger_times = Pet._parse_iso_list(_get(row, 'lunch_trigger_times', 9))
+        except Exception:
+            pet.lunch_trigger_times = []
+        try:
+            pet.dinner_trigger_times = Pet._parse_iso_list(_get(row, 'dinner_trigger_times', 10))
+        except Exception:
+            pet.dinner_trigger_times = []
+
+        return pet

@@ -1,15 +1,19 @@
 """数据库访问层（中文注释）
 
-本模块封装了对 SQLite 的最小操作集合，用于保存和查询 Pet 以及
-对触发器触发时间的历史记录（每种触发器保存为 JSON 列的时间字符串列表）。
+本模块封装了对 SQLite 的轻量操作，用于保存和查询 `Pet` 并维护触发器的触发历史。
+触发历史以 JSON 文本（ISO 时间字符串列表）保存在单独的列中（例如 `dinner_trigger_times`），
+读取时会解析为 `datetime` 列表，写入时以 ISO 时间字符串追加。
 
-设计说明（重要）：
-- `birth_date` 字段在当前设计中以 ISO 格式的字符串（"YYYY-MM-DD"）保存于表的 TEXT 列；
-  - 本模块**不再尝试**兼容 `date` 类型；调用方必须提供 ISO 字符串作为 `birth_date`。
-- 每个触发器的触发历史以 JSON 文本（ISO 时间字符串列表）保存，例如 `dinner_trigger_times`；
-- 初始化时会重建（DROP & CREATE）`pets` 表以使用最新 schema（按你的要求，不做旧表兼容）。
+设计与约定（重要）：
+- `birth_date` 字段以 ISO 格式字符串（"YYYY-MM-DD"）保存在 TEXT 列；
+  **强制约定**：调用方必须传入 ISO 字符串，`DB.add_pet` 在遇到非字符串会抛出 TypeError；
+- 新增 `mbti` 字段用于演示随机属性（四字母代码，如 "INTJ"），在 DB 中以 TEXT 存储；
+- `DB.__init__` 在初始化时会 DROP & CREATE `pets` 表以使用最新 schema（会清除旧数据）——
+  这是有意的简化设计（不做自动迁移），使用时请注意数据不可恢复；
+- 提供 `triggered_today` 方法以判断某宠物在某日是否已由指定触发器触发；
+  `Trigger.fire` 使用此方法实现“同一宠物、同一触发器在同一天只触发一次”的规则。
 
-此模块力求简单且可测，适合用作教学或原型示例；在生产中可换为带迁移支持的持久层实现。
+说明：此模块以教学/原型为目标；生产环境请补充迁移、并发控制与更严格的错误处理。
 """
 
 import sqlite3
@@ -70,6 +74,7 @@ class DB:
                 name TEXT NOT NULL,
                 birth_date TEXT NOT NULL,
                 gender TEXT NOT NULL,
+                mbti TEXT NOT NULL DEFAULT '',
                 -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
                 birth_trigger_times TEXT NOT NULL DEFAULT '[]',
                 wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
@@ -86,6 +91,8 @@ class DB:
         """向数据库插入一条 pet 记录并返回带有 id 的 Pet 实例。
 
         该方法会修改传入的 pet 对象，设置 pet.id 为数据库分配的主键。
+        要求：`pet.birth_date` 必须为 ISO 格式字符串（'YYYY-MM-DD'），否则抛出 TypeError；
+        `pet.mbti` 会按原样保存为 TEXT（允许空字符串）。
         """
         cur = self.conn.cursor()
         # 要求 birth_date 为 ISO 字符串（存储于 TEXT 列），不再支持 date 类型的自动转换
@@ -94,8 +101,8 @@ class DB:
         if not isinstance(b, str):
             raise TypeError("pet.birth_date must be an ISO format string 'YYYY-MM-DD'")
         cur.execute(
-            "INSERT INTO pets (name, birth_date, gender) VALUES (?, ?, ?)",
-            (pet.name, b, pet.gender),
+            "INSERT INTO pets (name, birth_date, gender, mbti) VALUES (?, ?, ?, ?)",
+            (pet.name, b, pet.gender, pet.mbti or ''),
         )
         pet.id = cur.lastrowid
         self.conn.commit()
@@ -115,12 +122,14 @@ class DB:
         return json.dumps(lst)
 
     def list_pets(self) -> List[Pet]:
-        """返回数据库中所有 pet 的列表（每项为 Pet 实例）。"""
+        """返回数据库中所有 pet 的列表（每项为 Pet 实例），包含触发器时间历史。"""
         cur = self.conn.cursor()
-        cur.execute("SELECT id, name, birth_date, gender FROM pets")
+        cur.execute(
+            "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times FROM pets"
+        )
         rows = cur.fetchall()
-        # 将每一行转换为 Pet（忽略触发器时间列）
-        return [Pet.from_row((r[0], r[1], r[2], r[3], None, None)) for r in rows]
+        # 将每一行（sqlite3.Row）传给 Pet.from_row，由其解析触发器时间列
+        return [Pet.from_row(r) for r in rows]
 
     def get_trigger_times(self, pet_id: int, trigger_name: str):
         """返回指定 pet 的某个触发器触发时间列表（datetime 列表），若不存在返回 None。"""

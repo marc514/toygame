@@ -1,14 +1,17 @@
-"""触发器（Trigger）模块，带中文注释。
+"""触发器（Trigger）模块。
 
 模块提供一个抽象基类 `Trigger`，以及多个具体实现：
 - `BirthTrigger`：当天为宠物生日时触发；
 - `TimerTrigger`：在指定小时触发（派生类如 `DinnerTimer`、`WakeUpTimer` 等）。
 
-触发后会通过数据库接口将触发发生的时间点以 ISO 字符串追加到对应宠物的触发器时间历史中，
+触发后会通过数据库接口将触发发生的时间点以 ISO 字符串追加到对应宠物的触发器时间历史中（JSON 列），
 以便保留完整触发记录（而不是简单计数）。
 
-注意：`Pet.birth_date` 在模型与数据库中以 ISO 格式的字符串表示（"YYYY-MM-DD"）；
-触发器实现会对可能为 `date` 的旧值做兼容处理并统一比较。"""
+行为与约定：
+- `Trigger.fire` 在满足条件且该宠物在**当天尚未由同名触发器触发**的情况下才会记录触发（即一天只记录一次）；
+- `Pet.birth_date` 在模型与数据库中约定为 ISO 格式字符串（"YYYY-MM-DD"），触发器不再对 date 对象做兼容转换；
+- 触发时间由本模块的 `datetime.now()` 提供（方便在测试中通过 monkeypatch 替换）。
+"""
 
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -31,8 +34,10 @@ class Trigger(ABC):
         """判断是否应该触发。返回 True 表示需要触发。"""
 
     def fire(self, pet: Pet, db: DB) -> bool:
-        """如果满足触发条件并且当天尚未触发过，则在数据库上记录触发时间并返回 True；
-        否则返回 False。"""
+        """如果满足触发条件并且当天尚未触发过，则在数据库上记录触发时间并返回 True；否则返回 False。
+
+        注：触发时间以 ISO 格式字符串追加到数据库中对应触发器的 JSON 列（由 `DB.record_trigger_time` 完成），
+        同时使用本模块的 `datetime.now()`（便于在测试中通过 monkeypatch 控制当前时间）。"""
         if not self.should_trigger(pet):
             return False
         # 使用触发器模块的 datetime（便于测试时通过 monkeypatch 控制当前时间）
@@ -99,7 +104,7 @@ class LunchTimer(TimerTrigger):
 
 
 class DinnerTimer(TimerTrigger):
-    """晚餐触发器，例如 18:00（6pm）。"""
+    """晚餐触发器，例如 18:00。"""
 
     name = "dinner"
     hour = 18
