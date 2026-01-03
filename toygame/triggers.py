@@ -31,12 +31,17 @@ class Trigger(ABC):
         """判断是否应该触发。返回 True 表示需要触发。"""
 
     def fire(self, pet: Pet, db: DB) -> bool:
-        """如果满足触发条件，则在数据库上记录触发时间并返回 True，否则返回 False。"""
-        if self.should_trigger(pet):
-            # 记录触发时间（使用 ISO 格式字符串存储），以便保持触发历史
-            db.record_trigger_time(pet.id, self.name, datetime.now())
-            return True
-        return False
+        """如果满足触发条件并且当天尚未触发过，则在数据库上记录触发时间并返回 True；
+        否则返回 False。"""
+        if not self.should_trigger(pet):
+            return False
+        # 使用触发器模块的 datetime（便于测试时通过 monkeypatch 控制当前时间）
+        today = datetime.now().date()
+        # 若当日已触发过则不再触发
+        if db.triggered_today(pet.id, self.name, today):
+            return False
+        db.record_trigger_time(pet.id, self.name, datetime.now())
+        return True
 
 
 class BirthTrigger(Trigger):

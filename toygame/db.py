@@ -150,6 +150,28 @@ class DB:
         from datetime import datetime as _dt
         return [_dt.fromisoformat(s) for s in times]
 
+    def triggered_today(self, pet_id: int, trigger_name: str, today_date=None) -> bool:
+        """判断给定宠物指定触发器当天是否已触发。
+
+        today_date: 可选的日期或 datetime 对象，默认为今天（便于测试时注入特定日期）。
+        返回 True 表示当日已有触发记录。"""
+        if today_date is None:
+            from datetime import date as _date
+            today_date = _date.today()
+        # 支持传入 datetime 对象或 date 对象
+        try:
+            d = today_date.date()
+        except Exception:
+            d = today_date
+
+        times = self.get_trigger_times(pet_id, trigger_name)
+        if not times:
+            return False
+        for t in times:
+            if t.date() == d:
+                return True
+        return False
+
     def record_trigger_time(self, pet_id: int, trigger_name: str, when_dt):
         """在对应触发器的时间列表中追加一个时间点（when_dt 为 datetime 实例）。"""
         mapping = {
