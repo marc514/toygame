@@ -5,8 +5,22 @@
 
 # 不变的 MBTI 类型元组（用于 membership 测试）
 MBTI_TYPES = (
-    "INTJ","INTP","ENTJ","ENTP","INFJ","INFP","ENFJ","ENFP",
-    "ISTJ","ISFJ","ESTJ","ESFJ","ISTP","ISFP","ESTP","ESFP",
+    "INTJ",
+    "INTP",
+    "ENTJ",
+    "ENTP",
+    "INFJ",
+    "INFP",
+    "ENFJ",
+    "ENFP",
+    "ISTJ",
+    "ISFJ",
+    "ESTJ",
+    "ESFJ",
+    "ISTP",
+    "ISFP",
+    "ESTP",
+    "ESFP",
 )
 
 # 方便用于 random.choice 的列表

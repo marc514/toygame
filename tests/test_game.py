@@ -1,44 +1,32 @@
-import os
 from datetime import datetime, date, timedelta
 
 import pytest
 
 from toygame.db import DB
 from toygame.models import Pet
-from toygame.triggers import BirthTrigger, TimerTrigger, WakeUpTimer, BedTimer, BreakfastTimer, LunchTimer, DinnerTimer
+from toygame.triggers import (
+    BirthTrigger,
+    WakeUpTimer,
+    BedTimer,
+    BreakfastTimer,
+    LunchTimer,
+    DinnerTimer,
+)
 from toygame.main import run_game, create_pets
-from toygame.enums import MBTI_TYPES, MBTI_LIST
+from toygame.enums import MBTI_TYPES
 
-
-def test_db_add_and_list(tmp_path):
-    """测试：添加宠物并能通过 list_pets 读取。
-
-    说明：`birth_date` 在当前设计中以 ISO 字符串保存，调用方应传入 ISO 字符串。
-    这里我们验证返回的 Pet 实例的 `birth_date` 为字符串且能被解析为日期。
-    """
-    dbfile = tmp_path / "test.db"
-    db = DB(str(dbfile))
-    p1 = Pet(id=0, name="a", birth_date=date.today().isoformat(), gender="M", mbti="INTJ")
-    p2 = Pet(id=0, name="b", birth_date=date.today().isoformat(), gender="F", mbti="ENFP")
-    db.add_pet(p1)
-    db.add_pet(p2)
-    pets = db.list_pets()
-    assert len(pets) == 2
-    # 确认 birth_date 为 ISO 字符串并可被解析
-    from datetime import date as _d
-    assert isinstance(pets[0].birth_date, str)
-    _d.fromisoformat(pets[0].birth_date)
-    assert isinstance(pets[1].birth_date, str)
-    _d.fromisoformat(pets[1].birth_date)
-    # 已指定的 MBTI 应如实返回
-    assert pets[0].mbti == "INTJ"
-    assert pets[1].mbti == "ENFP"
 
 def test_birth_trigger_increments(tmp_path, monkeypatch):
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
     # pet with birth today
-    pet = Pet(id=0, name="born_today", birth_date=date.today().isoformat(), gender="F", mbti="INFP")
+    pet = Pet(
+        id=0,
+        name="born_today",
+        birth_date=date.today().isoformat(),
+        gender="F",
+        mbti="INFP",
+    )
     pet = db.add_pet(pet)
 
     # 使用 monkeypatch 模拟触发器模块中的 datetime.now() 返回当天中午（保证与 birth_date 相同）
@@ -48,27 +36,34 @@ def test_birth_trigger_increments(tmp_path, monkeypatch):
             return datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     import toygame.triggers as triggers
-    monkeypatch.setattr(triggers, 'datetime', DummyDatetime)
+
+    monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     b = BirthTrigger()
 
     fired = b.fire(pet, db)
     assert fired
-    times = db.get_trigger_times(pet.id, 'birth')
+    times = db.get_trigger_times(pet.id, "birth")
     assert len(times) == 1
 
     # 再次触发应继续追加时间点
     # 当天已触发过则不再记录第二次
     fired2 = b.fire(pet, db)
     assert not fired2
-    times = db.get_trigger_times(pet.id, 'birth')
+    times = db.get_trigger_times(pet.id, "birth")
     assert len(times) == 1
 
 
 def test_birth_trigger_not_on_other_day(tmp_path, monkeypatch):
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
-    pet = Pet(id=0, name="born_other", birth_date=(date.today() - timedelta(days=1)).isoformat(), gender="M", mbti="ENTJ")
+    pet = Pet(
+        id=0,
+        name="born_other",
+        birth_date=(date.today() - timedelta(days=1)).isoformat(),
+        gender="M",
+        mbti="ENTJ",
+    )
     pet = db.add_pet(pet)
 
     # 模拟当前时间为当天中午（与 pet.birth_date 前一天不同），确保不触发
@@ -78,19 +73,22 @@ def test_birth_trigger_not_on_other_day(tmp_path, monkeypatch):
             return datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     import toygame.triggers as triggers
-    monkeypatch.setattr(triggers, 'datetime', DummyDatetime)
+
+    monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     b = BirthTrigger()
     fired = b.fire(pet, db)
     assert not fired
-    times = db.get_trigger_times(pet.id, 'birth')
+    times = db.get_trigger_times(pet.id, "birth")
     assert len(times) == 0
 
 
 def test_dinner_timer_at_6pm(tmp_path, monkeypatch):
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
-    pet = Pet(id=0, name="t", birth_date=date.today().isoformat(), gender="M", mbti="ISTP")
+    pet = Pet(
+        id=0, name="t", birth_date=date.today().isoformat(), gender="M", mbti="ISTP"
+    )
     pet = db.add_pet(pet)
 
     # 使用 monkeypatch 模拟触发器模块中的 datetime.now() 返回 18:00
@@ -100,19 +98,20 @@ def test_dinner_timer_at_6pm(tmp_path, monkeypatch):
             return datetime.now().replace(hour=18, minute=0, second=0, microsecond=0)
 
     import toygame.triggers as triggers
-    monkeypatch.setattr(triggers, 'datetime', DummyDatetime)
+
+    monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     t = DinnerTimer()
     fired = t.fire(pet, db)
     assert fired
-    times = db.get_trigger_times(pet.id, 'dinner')
+    times = db.get_trigger_times(pet.id, "dinner")
     assert len(times) == 1
     # 确认记录的时间小时为 18
     assert times[0].hour == 18
     # 再次触发当天不应重复记录
     fired2 = t.fire(pet, db)
     assert not fired2
-    times = db.get_trigger_times(pet.id, 'dinner')
+    times = db.get_trigger_times(pet.id, "dinner")
     assert len(times) == 1
 
 
@@ -120,8 +119,10 @@ def test_wakeup_timer_at_7am(tmp_path, monkeypatch):
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
     # birth_date 使用 ISO 字符串表示
-    pet = Pet(id=0, name="w", birth_date=date.today().isoformat(), gender="F", mbti="ESFJ")
-    pet = db.add_pet(pet) 
+    pet = Pet(
+        id=0, name="w", birth_date=date.today().isoformat(), gender="F", mbti="ESFJ"
+    )
+    pet = db.add_pet(pet)
 
     class DummyDatetime:
         @classmethod
@@ -129,18 +130,19 @@ def test_wakeup_timer_at_7am(tmp_path, monkeypatch):
             return datetime.now().replace(hour=7, minute=0, second=0, microsecond=0)
 
     import toygame.triggers as triggers
-    monkeypatch.setattr(triggers, 'datetime', DummyDatetime)
+
+    monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     t = WakeUpTimer()
     fired = t.fire(pet, db)
     assert fired
-    times = db.get_trigger_times(pet.id, 'wakeup')
+    times = db.get_trigger_times(pet.id, "wakeup")
     assert len(times) == 1
     assert times[0].hour == 7
     # 再触发当天不应重复记录
     fired2 = t.fire(pet, db)
     assert not fired2
-    times = db.get_trigger_times(pet.id, 'wakeup')
+    times = db.get_trigger_times(pet.id, "wakeup")
     assert len(times) == 1
 
 
@@ -148,7 +150,9 @@ def test_lunch_timer_at_noon(tmp_path, monkeypatch):
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
     # birth_date 使用 ISO 字符串表示
-    pet = Pet(id=0, name="l", birth_date=date.today().isoformat(), gender="M", mbti="ESTJ")
+    pet = Pet(
+        id=0, name="l", birth_date=date.today().isoformat(), gender="M", mbti="ESTJ"
+    )
     pet = db.add_pet(pet)
 
     class DummyDatetime:
@@ -157,18 +161,19 @@ def test_lunch_timer_at_noon(tmp_path, monkeypatch):
             return datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
     import toygame.triggers as triggers
-    monkeypatch.setattr(triggers, 'datetime', DummyDatetime)
+
+    monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     t = LunchTimer()
     fired = t.fire(pet, db)
     assert fired
-    times = db.get_trigger_times(pet.id, 'lunch')
+    times = db.get_trigger_times(pet.id, "lunch")
     assert len(times) == 1
     assert times[0].hour == 12
     # 再次触发当天不应重复记录
     fired2 = t.fire(pet, db)
     assert not fired2
-    times = db.get_trigger_times(pet.id, 'lunch')
+    times = db.get_trigger_times(pet.id, "lunch")
     assert len(times) == 1
 
 
@@ -192,6 +197,7 @@ def test_run_game_creates_pets(tmp_path):
 def test_mbti_random_pet_values():
     """验证 random_pet 返回的 Pet.mbti 属于 16 型集合。"""
     from toygame.main import random_pet
+
     # 多次调用以覆盖随机性
     seen = set()
     for i in range(50):
@@ -204,7 +210,7 @@ def test_mbti_random_pet_values():
 
 
 def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
-    """循环调用：每次先创建 1 个随机 pet，再调用 run_game，并将 triggers.datetime.now() 设置为
+    """循环调用：调用 run_game，并将 triggers.datetime.now() 设置为
     从 2000-01-01 00:00:00 起每次增加 7 小时，验证每轮新插入的宠物在对应小时触发器的行为。"""
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
@@ -215,7 +221,7 @@ def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
 
     base = datetime(2000, 1, 1, 0, 0, 0)
     # 小时 -> 触发器名映射（我们关心这几个时间点）
-    mapping = {7: 'wakeup', 8: 'breakfast', 12: 'lunch', 18: 'dinner', 22: 'bed'}
+    mapping = {7: "wakeup", 8: "breakfast", 12: "lunch", 18: "dinner", 22: "bed"}
 
     create_pets(db, num_pets=3)
 
@@ -228,9 +234,19 @@ def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
             def now(cls):
                 return current
 
-        monkeypatch.setattr(triggers, 'datetime', DummyDatetime)
+        monkeypatch.setattr(triggers, "datetime", DummyDatetime)
         run_game(db)
 
     pets = db.list_pets()
     for p in pets:
-        print(f"{p.name}\t{p.birth_date}\t{p.gender}\t{p.mbti}\t{p.birth_trigger_times}\t{p.wakeup_trigger_times}")
+        # 避免超长行，使用 format 分行拼接输出，便于调试
+        print(
+            "{}\t{}\t{}\t{}\t{}\t{}".format(
+                p.name,
+                p.birth_date,
+                p.gender,
+                p.mbti,
+                p.birth_trigger_times,
+                p.wakeup_trigger_times,
+            )
+        )

@@ -6,13 +6,21 @@
 
 注：为了方便测试，`run_game` 接受一个显式的 `DB` 实例并仅负责轮询触发器；若需要创建宠物，请先调用 `create_pets`。
 """
+
 from datetime import datetime, timedelta, date
 import random
 
 from .db import DB
 from .enums import MBTI_LIST
 from .models import Pet
-from .triggers import BirthTrigger, WakeUpTimer, BedTimer, BreakfastTimer, LunchTimer, DinnerTimer
+from .triggers import (
+    BirthTrigger,
+    WakeUpTimer,
+    BedTimer,
+    BreakfastTimer,
+    LunchTimer,
+    DinnerTimer,
+)
 
 
 def random_pet(name_prefix: str, idx: int) -> Pet:
@@ -29,7 +37,9 @@ def random_pet(name_prefix: str, idx: int) -> Pet:
     # 使用统一定义的 MBTI 值（从 toygame.enums 导入），简化维护
     mbti = random.choice(MBTI_LIST)
     # 使用 0 作为插入前占位 id（必须提供 id）
-    return Pet(id=0, name=f"{name_prefix}{idx}", birth_date=birth, gender=gender, mbti=mbti)
+    return Pet(
+        id=0, name=f"{name_prefix}{idx}", birth_date=birth, gender=gender, mbti=mbti
+    )
 
 
 def create_pets(db: DB, num_pets: int = 5):
@@ -38,6 +48,7 @@ def create_pets(db: DB, num_pets: int = 5):
     pets = [random_pet("pet", i + 1) for i in range(num_pets)]
     for p in pets:
         db.add_pet(p)
+
 
 def run_game(db: DB):
     """执行一次游戏循环：轮询数据库中的所有宠物并运行触发器逻辑。

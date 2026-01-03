@@ -39,6 +39,7 @@ class Pet:
     def _parse_iso_list(text: Any):
         """将 JSON 文本或已经是 list 的值转换为 datetime 列表。"""
         import json
+
         if not text:
             return []
         if isinstance(text, list):
@@ -64,48 +65,61 @@ class Pet:
             (id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times,
              breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times)
         """
+
         def _get(r, key, idx):
             try:
                 return r[key]
             except Exception:
                 return r[idx]
 
-        b = _get(row, 'birth_date', 2)
+        b = _get(row, "birth_date", 2)
         if not isinstance(b, str):
             b = str(b)
 
         pet = Pet(
-            id=_get(row, 'id', 0),
-            name=_get(row, 'name', 1),
+            id=_get(row, "id", 0),
+            name=_get(row, "name", 1),
             birth_date=b,
-            gender=_get(row, 'gender', 3),
-            mbti=_get(row, 'mbti', 4) or "",
+            gender=_get(row, "gender", 3),
+            mbti=_get(row, "mbti", 4) or "",
         )
 
         # 解析触发器时间列（若查询包含这些列）
         # 使用长度判断以兼容仅查询部分列的情况
         try:
-            pet.birth_trigger_times = Pet._parse_iso_list(_get(row, 'birth_trigger_times', 5))
+            pet.birth_trigger_times = Pet._parse_iso_list(
+                _get(row, "birth_trigger_times", 5)
+            )
         except Exception:
             pet.birth_trigger_times = []
         try:
-            pet.wakeup_trigger_times = Pet._parse_iso_list(_get(row, 'wakeup_trigger_times', 6))
+            pet.wakeup_trigger_times = Pet._parse_iso_list(
+                _get(row, "wakeup_trigger_times", 6)
+            )
         except Exception:
             pet.wakeup_trigger_times = []
         try:
-            pet.bed_trigger_times = Pet._parse_iso_list(_get(row, 'bed_trigger_times', 7))
+            pet.bed_trigger_times = Pet._parse_iso_list(
+                _get(row, "bed_trigger_times", 7)
+            )
         except Exception:
             pet.bed_trigger_times = []
         try:
-            pet.breakfast_trigger_times = Pet._parse_iso_list(_get(row, 'breakfast_trigger_times', 8))
+            pet.breakfast_trigger_times = Pet._parse_iso_list(
+                _get(row, "breakfast_trigger_times", 8)
+            )
         except Exception:
             pet.breakfast_trigger_times = []
         try:
-            pet.lunch_trigger_times = Pet._parse_iso_list(_get(row, 'lunch_trigger_times', 9))
+            pet.lunch_trigger_times = Pet._parse_iso_list(
+                _get(row, "lunch_trigger_times", 9)
+            )
         except Exception:
             pet.lunch_trigger_times = []
         try:
-            pet.dinner_trigger_times = Pet._parse_iso_list(_get(row, 'dinner_trigger_times', 10))
+            pet.dinner_trigger_times = Pet._parse_iso_list(
+                _get(row, "dinner_trigger_times", 10)
+            )
         except Exception:
             pet.dinner_trigger_times = []
 

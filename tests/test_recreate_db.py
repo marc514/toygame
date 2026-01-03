@@ -19,8 +19,10 @@ def create_old_db(path):
         )
         """
     )
-    cur.execute("INSERT INTO pets (name, birth_date, gender, birth_trigger_count, timer_trigger_count) VALUES (?, ?, ?, ?, ?)",
-                ("old", date.today(), "M", 1, 1))
+    cur.execute(
+        "INSERT INTO pets (name, birth_date, gender, birth_trigger_count, timer_trigger_count) VALUES (?, ?, ?, ?, ?)",
+        ("old", date.today(), "M", 1, 1),
+    )
     conn.commit()
     conn.close()
 

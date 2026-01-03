@@ -26,17 +26,21 @@ from .models import Pet
 # 显式注册日期类型的 adapter 与 converter，避免依赖 sqlite3 的默认行为。
 import datetime as _datetime
 
+
 def _adapt_date(value: _datetime.date) -> bytes:
     """将 datetime.date 转换为 bytes（ISO 格式字符串）以存储到 SQLite。"""
     return value.isoformat().encode()
+
 
 def _convert_date(value: bytes) -> _datetime.date:
     """将 SQLite 字节串（ISO 格式）转换回 datetime.date。"""
     return _datetime.date.fromisoformat(value.decode())
 
+
 # 注册适配器与转换器，名称 'DATE' 对应数据库中声明的列类型
 sqlite3.register_adapter(_datetime.date, _adapt_date)
 sqlite3.register_converter("DATE", _convert_date)
+
 
 class DB:
     """用于操作 pets 表的轻量封装类。
@@ -54,7 +58,9 @@ class DB:
                      适合测试场景。
         """
         # 使用明确的 detect_types 标志让 sqlite3 在解析列时使用我们注册的转换器
-        self.conn = sqlite3.connect(db_path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        self.conn = sqlite3.connect(
+            db_path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+        )
         # 使用 Row 类型可以通过下标访问字段，也可用于调试输出
         self.conn.row_factory = sqlite3.Row
         self._init_tables()
@@ -102,7 +108,7 @@ class DB:
             raise TypeError("pet.birth_date must be an ISO format string 'YYYY-MM-DD'")
         cur.execute(
             "INSERT INTO pets (name, birth_date, gender, mbti) VALUES (?, ?, ?, ?)",
-            (pet.name, b, pet.gender, pet.mbti or ''),
+            (pet.name, b, pet.gender, pet.mbti or ""),
         )
         pet.id = cur.lastrowid
         self.conn.commit()
@@ -111,6 +117,7 @@ class DB:
     def _read_json_list(self, text: str):
         """解析数据库中 JSON 列，并返回 Python 列表。"""
         import json
+
         try:
             return json.loads(text) if text else []
         except Exception:
@@ -119,6 +126,7 @@ class DB:
     def _write_json_list(self, lst) -> str:
         """将 Python 列表序列化为 JSON 文本用于存储。"""
         import json
+
         return json.dumps(lst)
 
     def list_pets(self) -> List[Pet]:
@@ -157,6 +165,7 @@ class DB:
         times = self._read_json_list(text)
         # 将 ISO 字符串转换为 datetime
         from datetime import datetime as _dt
+
         return [_dt.fromisoformat(s) for s in times]
 
     def triggered_today(self, pet_id: int, trigger_name: str, today_date=None) -> bool:
@@ -166,6 +175,7 @@ class DB:
         返回 True 表示当日已有触发记录。"""
         if today_date is None:
             from datetime import date as _date
+
             today_date = _date.today()
         # 支持传入 datetime 对象或 date 对象
         try:
