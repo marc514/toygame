@@ -30,20 +30,17 @@ class Trigger(ABC):
     name: str
 
     @abstractmethod
-    def should_trigger(self, pet: Pet) -> bool:
-        """判断是否应该触发。返回 True 表示需要触发。"""
+    def should_trigger(self, pet: Pet, db: DB = None) -> bool:
+        """判断是否应该触发。返回 True 表示需要触发。
+        可选的db参数用于频率控制等需要查询数据库的逻辑。"""
 
     def fire(self, pet: Pet, db: DB) -> bool:
-        """如果满足触发条件并且当天尚未触发过，则在数据库上记录触发时间并返回 True；否则返回 False。
+        """如果满足触发条件，则在数据库上记录触发时间并返回 True；否则返回 False。
 
         注：触发时间以 ISO 格式字符串追加到数据库中对应触发器的 JSON 列（由 `DB.record_trigger_time` 完成），
-        同时使用本模块的 `datetime.now()`（便于在测试中通过 monkeypatch 控制当前时间）。"""
-        if not self.should_trigger(pet):
-            return False
-        # 使用触发器模块的 datetime（便于测试时通过 monkeypatch 控制当前时间）
-        today = datetime.now().date()
-        # 若当日已触发过则不再触发
-        if db.triggered_today(pet.id, self.name, today):
+        同时使用本模块的 `datetime.now()`（便于在测试中通过 monkeypatch 控制当前时间）。
+        频率控制逻辑在子类的should_trigger方法中实现。"""
+        if not self.should_trigger(pet, db):
             return False
         db.record_trigger_time(pet.id, self.name, datetime.now())
         return True
@@ -57,14 +54,20 @@ class BirthTrigger(Trigger):
 
     name = "birth"
 
-    def should_trigger(self, pet: Pet) -> bool:
+    def should_trigger(self, pet: Pet, db: DB = None) -> bool:
         now = datetime.now()
         # 解析出生日期字符串为月日
         birth_parts = pet.birth_date.split('-')
         birth_month = int(birth_parts[1])
         birth_day = int(birth_parts[2])
         # 比较月日，忽略年份
-        return now.month == birth_month and now.day == birth_day
+        is_birthday = now.month == birth_month and now.day == birth_day
+        
+        # 检查当天是否已经触发过，生日触发器一天只触发一次
+        if db and db.triggered_today(pet.id, self.name, now.date()):
+            return False
+        
+        return is_birthday
 
 
 class TimerTrigger(Trigger):
@@ -73,9 +76,15 @@ class TimerTrigger(Trigger):
     name = "timer"
     hour: int = 0
 
-    def should_trigger(self, pet: Pet) -> bool:
+    def should_trigger(self, pet: Pet, db: DB = None) -> bool:
         now = datetime.now()
-        return now.hour == self.hour
+        is_hour_match = now.hour == self.hour
+        
+        # 检查当天是否已经触发过，计时触发器一天只触发一次
+        if db and db.triggered_today(pet.id, self.name, now.date()):
+            return False
+        
+        return is_hour_match
 
 
 class WakeUpTimer(TimerTrigger):
