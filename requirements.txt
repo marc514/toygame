@@ -2,8 +2,11 @@
 # 本项目在运行时仅依赖 Python 标准库，因此不需要额外的第三方包。
 # 如果将来添加外部库，请在此处列出，例如：
 # requests>=2.30.0
+
 # 测试依赖
 pytest>=7.0.0
+# Gemini API 依赖
+google-genai==1.56.0
 
 anyio==4.11.0
 argon2-cffi==25.1.0
