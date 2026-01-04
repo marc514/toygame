@@ -58,9 +58,13 @@ class BirthTrigger(Trigger):
     name = "birth"
 
     def should_trigger(self, pet: Pet) -> bool:
-        now_iso = datetime.now().date().isoformat()
-        b = pet.birth_date
-        return now_iso == b
+        now = datetime.now()
+        # 解析出生日期字符串为月日
+        birth_parts = pet.birth_date.split('-')
+        birth_month = int(birth_parts[1])
+        birth_day = int(birth_parts[2])
+        # 比较月日，忽略年份
+        return now.month == birth_month and now.day == birth_day
 
 
 class TimerTrigger(Trigger):
