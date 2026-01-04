@@ -211,7 +211,7 @@ def test_mbti_random_pet_values():
 
 def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
     """循环调用：调用 run_game，并将 triggers.datetime.now() 设置为
-    从 2000-01-01 00:00:00 起每次增加 7 小时，验证每轮新插入的宠物在对应小时触发器的行为。"""
+    从 2000-01-01 00:00:00 起每次增加 13 小时，触发器的行为。"""
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
 
@@ -225,9 +225,10 @@ def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
 
     create_pets(db, num_pets=3)
 
-    iterations = 5000
+    iterations = 10000
+    delta_t = 13
     for i in range(iterations):
-        current = base + timedelta(hours=13 * i)
+        current = base + timedelta(hours=delta_t * i)
 
         class DummyDatetime:
             @classmethod
@@ -241,12 +242,12 @@ def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
     for p in pets:
         # 避免超长行，使用 format 分行拼接输出，便于调试
         print(
-            "{}\t{}\t{}\t{}\t{}\t{}".format(
+            "name:{}\tbirth_date:{}\tgender:{}\tmbti:{}\tbirth_times:{}\twakeup_times:{}".format(
                 p.name,
                 p.birth_date,
                 p.gender,
                 p.mbti,
-                p.birth_trigger_times,
-                p.wakeup_trigger_times,
+                len(p.birth_trigger_times),
+                len(p.wakeup_trigger_times),
             )
         )

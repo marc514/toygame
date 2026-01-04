@@ -25,7 +25,7 @@ python -m pip install -r requirements-dev.txt
 
 ```bash
 # 主流程
-pytest tests/test_game.py::test_run_game_multiple_times_with_time_progression -q
+pytest tests/test_game.py::test_run_game_multiple_times_with_time_progression -q -s
 # 全部单测
 pytest -q
 # 可以在pytest默认tmp路径下查看test.db，人工校验

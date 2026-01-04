@@ -72,9 +72,10 @@ def run_game(db: DB):
     for pet in db.list_pets():
         for trig in triggers:
             fired = trig.fire(pet, db)
-            if fired:
-                # 仅在交互运行时打印信息，测试中不依赖打印
-                print(f"Triggered {trig.name} for pet {pet.name}")
+            # if fired:
+            #     # 仅在交互运行时打印信息，测试中不依赖打印
+            #     print(f"Triggered {trig.name} for pet {pet.name}")
+
     # todo: 联合事件触发，关系型数据库
 
 

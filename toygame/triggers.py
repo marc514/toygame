@@ -60,7 +60,6 @@ class BirthTrigger(Trigger):
     def should_trigger(self, pet: Pet) -> bool:
         now_iso = datetime.now().date().isoformat()
         b = pet.birth_date
-        # 假定 b 为 ISO 字符串（"YYYY-MM-DD"）
         return now_iso == b
 
 
