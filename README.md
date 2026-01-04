@@ -14,11 +14,10 @@
 安装依赖：
 
 ```bash
-# 运行时依赖（当前项目仅使用标准库，通常为空）
+# 运行时依赖
+conda create -n game python=3.12.1
+conda activate game
 python -m pip install -r requirements.txt
-
-# 开发与测试依赖（用于运行测试、收集覆盖率等）
-python -m pip install -r requirements-dev.txt
 ```
 
 运行测试：
