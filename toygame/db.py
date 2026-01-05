@@ -159,13 +159,56 @@ class DB:
     def list_pets(self) -> List[Pet]:
         """
         Returns:
-            List[Pet]: 数据库中所有宠物的列表
+            List[Pet]: 数据库中所有 pet 的列表（每项为 Pet 实例），包含触发器时间历史。
         """
         cur = self.conn.cursor()
         cur.execute(
             "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times FROM pets"
         )
         rows = cur.fetchall()
+        # 将每一行（sqlite3.Row）传给 Pet.from_row，由其解析触发器时间列
+        return [Pet.from_row(r) for r in rows]
+
+    def search_pets(self, pet_ids: List[int] = None, pet_names: List[str] = None) -> List[Pet]:
+        """根据可选的ID列表或名称列表搜索宠物
+        
+        Args:
+            pet_ids: 可选的宠物ID列表，如果提供则搜索指定ID的宠物
+            pet_names: 可选的宠物名称列表，如果提供则搜索指定名称的宠物
+            
+        Returns:
+            List[Pet]: 匹配搜索条件的宠物列表
+        """
+        cur = self.conn.cursor()
+        
+        # 如果没有提供任何搜索条件，返回空列表
+        if not pet_ids and not pet_names:
+            return []
+        
+        # 构建查询语句和参数
+        query = "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times FROM pets"
+        params = []
+        conditions = []
+        
+        if pet_ids:
+            # 添加ID条件
+            id_placeholders = ','.join(['?' for _ in pet_ids])
+            conditions.append(f"id IN ({id_placeholders})")
+            params.extend(pet_ids)
+            
+        if pet_names:
+            # 添加名称条件
+            name_placeholders = ','.join(['?' for _ in pet_names])
+            conditions.append(f"name IN ({name_placeholders})")
+            params.extend(pet_names)
+        
+        if conditions:
+            # 使用OR连接条件（而不是AND）
+            query += " WHERE " + " OR ".join(conditions)
+        
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        
         # 将每一行（sqlite3.Row）传给 Pet.from_row，由其解析触发器时间列
         return [Pet.from_row(r) for r in rows]
 
