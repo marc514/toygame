@@ -63,6 +63,41 @@ class DB:
     我们显式注册了 adapter/converter 以消除 Python 3.12 的弃用警告。
     """
 
+    # 基本字段定义
+    BASIC_FIELDS = [
+        ("id", "INTEGER", 0, None, 1),  # 主键
+        ("name", "TEXT", 1, None, 1),  # 名字
+        ("birth_date", "TEXT", 1, None, 0),  # 出生日期
+        ("gender", "TEXT", 1, None, 0),  # 性别
+        ("mbti", "TEXT", 1, "", 0),  # MBTI
+    ]
+
+    # 基本字段SQL定义
+    BASIC_FIELDS_SQL = [
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "name TEXT NOT NULL",
+        "birth_date TEXT NOT NULL",
+        "gender TEXT NOT NULL",
+        "mbti TEXT NOT NULL DEFAULT ''",
+    ]
+
+    # 触发器映射定义
+    TRIGGER_MAPPINGS = {
+        "birth": "birth_trigger_times",
+        "wakeup": "wakeup_trigger_times",
+        "bed": "bed_trigger_times",
+        "breakfast": "breakfast_trigger_times",
+        "lunch": "lunch_trigger_times",
+        "dinner": "dinner_trigger_times",
+    }
+
+    # 触发器字段名列表
+    TRIGGER_FIELDS = list(TRIGGER_MAPPINGS.values())
+
+    # 聊天历史字段
+    CHAT_HISTORY_FIELD = ("chat_history", "TEXT", 1, "[]", 0)
+    CHAT_HISTORY_SQL = "chat_history TEXT NOT NULL DEFAULT '[]'"
+
     def __init__(self, db_path: str = ":memory:"):
         """打开数据库连接并确保表结构存在。
 
@@ -91,26 +126,7 @@ class DB:
 
         if not table_exists:
             # 如果表不存在，直接创建新表
-            cur.execute(
-                """
-                CREATE TABLE pets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    birth_date TEXT NOT NULL,
-                    gender TEXT NOT NULL,
-                    mbti TEXT NOT NULL DEFAULT '',
-                    -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
-                    birth_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    bed_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    breakfast_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    lunch_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    dinner_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    -- 存储聊天历史的 JSON 列
-                    chat_history TEXT NOT NULL DEFAULT '[]'
-                )
-                """
-            )
+            cur.execute(self._get_create_table_sql())
             self.conn.commit()
             return
 
@@ -119,46 +135,14 @@ class DB:
         existing_columns = cur.fetchall()
 
         # 定义期望的列结构 - 注意：这里需要与实际创建表的列完全匹配
-        expected_columns = [
-            ("id", "INTEGER", 0, None, 1),
-            ("name", "TEXT", 1, None, 1),
-            ("birth_date", "TEXT", 1, None, 0),
-            ("gender", "TEXT", 1, None, 0),
-            ("mbti", "TEXT", 1, "", 0),
-            ("birth_trigger_times", "TEXT", 1, "[]", 0),
-            ("wakeup_trigger_times", "TEXT", 1, "[]", 0),
-            ("bed_trigger_times", "TEXT", 1, "[]", 0),
-            ("breakfast_trigger_times", "TEXT", 1, "[]", 0),
-            ("lunch_trigger_times", "TEXT", 1, "[]", 0),
-            ("dinner_trigger_times", "TEXT", 1, "[]", 0),
-            ("chat_history", "TEXT", 1, "[]", 0),
-        ]
+        expected_columns = self._get_expected_columns()
 
         # 检查列数量是否匹配
         if len(existing_columns) != len(expected_columns):
             # 列数量不匹配，需要重建表
             print("Table structure mismatch: column count differs. Rebuilding table...")
             cur.execute("DROP TABLE IF EXISTS pets")
-            cur.execute(
-                """
-                CREATE TABLE pets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    birth_date TEXT NOT NULL,
-                    gender TEXT NOT NULL,
-                    mbti TEXT NOT NULL DEFAULT '',
-                    -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
-                    birth_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    bed_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    breakfast_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    lunch_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    dinner_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    -- 存储聊天历史的 JSON 列
-                    chat_history TEXT NOT NULL DEFAULT '[]'
-                )
-                """
-            )
+            cur.execute(self._get_create_table_sql())
             self.conn.commit()
             return
 
@@ -194,26 +178,7 @@ class DB:
 
             # 重建表
             cur.execute("DROP TABLE IF EXISTS pets")
-            cur.execute(
-                """
-                CREATE TABLE pets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    birth_date TEXT NOT NULL,
-                    gender TEXT NOT NULL,
-                    mbti TEXT NOT NULL DEFAULT '',
-                    -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
-                    birth_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    bed_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    breakfast_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    lunch_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    dinner_trigger_times TEXT NOT NULL DEFAULT '[]',
-                    -- 存储聊天历史的 JSON 列
-                    chat_history TEXT NOT NULL DEFAULT '[]'
-                )
-                """
-            )
+            cur.execute(self._get_create_table_sql())
 
             # 尝试插入备份的数据
             if existing_data:
@@ -244,6 +209,38 @@ class DB:
                     "ALTER TABLE pets ADD COLUMN chat_history TEXT NOT NULL DEFAULT '[]'"
                 )
                 self.conn.commit()
+
+    def _get_create_table_sql(self):
+        """生成创建表的SQL语句"""
+        # 基本字段SQL
+        all_fields_sql = self.BASIC_FIELDS_SQL[:]
+
+        # 添加触发器字段SQL
+        all_fields_sql.extend(
+            [f"{field} TEXT NOT NULL DEFAULT '[]'" for field in self.TRIGGER_FIELDS]
+        )
+
+        # 添加聊天历史字段SQL
+        all_fields_sql.append(self.CHAT_HISTORY_SQL)
+
+        fields_sql = ",\n                    ".join(all_fields_sql)
+
+        return f"""
+                CREATE TABLE pets (
+                    {fields_sql}
+                )
+                """
+
+    def _get_expected_columns(self):
+        """获取期望的列结构定义"""
+        expected_columns = self.BASIC_FIELDS[:]
+        # 添加触发器字段
+        expected_columns.extend(
+            [(field, "TEXT", 1, "[]", 0) for field in self.TRIGGER_FIELDS]
+        )
+        # 添加聊天历史字段
+        expected_columns.append(self.CHAT_HISTORY_FIELD)
+        return expected_columns
 
     def add_pet(self, pet: Pet) -> Pet:
         """
@@ -302,9 +299,15 @@ class DB:
             List[Pet]: 数据库中所有 pet 的列表（每项为 Pet 实例），包含触发器时间历史。
         """
         cur = self.conn.cursor()
-        cur.execute(
-            "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times, chat_history FROM pets"
+        # 构建查询语句动态包含所有触发器字段
+        all_columns = (
+            ["id", "name", "birth_date", "gender", "mbti"]
+            + self.TRIGGER_FIELDS
+            + ["chat_history"]
         )
+        columns_str = ", ".join(all_columns)
+
+        cur.execute(f"SELECT {columns_str} FROM pets")
         rows = cur.fetchall()
         # 将每一行（sqlite3.Row）传给 Pet.from_row，由其解析触发器时间列
         return [Pet.from_row(r) for r in rows]
@@ -328,7 +331,14 @@ class DB:
             return []
 
         # 构建查询语句和参数
-        query = "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times, chat_history FROM pets"
+        all_columns = (
+            ["id", "name", "birth_date", "gender", "mbti"]
+            + self.TRIGGER_FIELDS
+            + ["chat_history"]
+        )
+        columns_str = ", ".join(all_columns)
+
+        query = f"SELECT {columns_str} FROM pets"
         params = []
         conditions = []
 
@@ -365,18 +375,9 @@ class DB:
         """
         # 在数据库中我们使用 JSON 文本保存时间字符串（ISO 格式），
         # 这里根据 trigger_name 选择相应的列并解析为 datetime 对象列表。
-        col = None
-        mapping = {
-            "birth": "birth_trigger_times",
-            "wakeup": "wakeup_trigger_times",
-            "bed": "bed_trigger_times",
-            "breakfast": "breakfast_trigger_times",
-            "lunch": "lunch_trigger_times",
-            "dinner": "dinner_trigger_times",
-        }
-        if trigger_name not in mapping:
+        if trigger_name not in self.TRIGGER_MAPPINGS:
             raise ValueError(f"Unknown trigger: {trigger_name}")
-        col = mapping[trigger_name]
+        col = self.TRIGGER_MAPPINGS[trigger_name]
 
         cur = self.conn.cursor()
         cur.execute(f"SELECT {col} FROM pets WHERE id = ?", (pet_id,))
@@ -429,17 +430,9 @@ class DB:
         Returns:
             bool: 记录是否成功
         """
-        mapping = {
-            "birth": "birth_trigger_times",
-            "wakeup": "wakeup_trigger_times",
-            "bed": "bed_trigger_times",
-            "breakfast": "breakfast_trigger_times",
-            "lunch": "lunch_trigger_times",
-            "dinner": "dinner_trigger_times",
-        }
-        if trigger_name not in mapping:
+        if trigger_name not in self.TRIGGER_MAPPINGS:
             raise ValueError(f"Unknown trigger: {trigger_name}")
-        col = mapping[trigger_name]
+        col = self.TRIGGER_MAPPINGS[trigger_name]
 
         cur = self.conn.cursor()
         cur.execute(f"SELECT {col} FROM pets WHERE id = ?", (pet_id,))
