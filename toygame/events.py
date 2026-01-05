@@ -16,7 +16,7 @@ class Event(ABC):
     """事件基类，所有事件应继承此类"""
 
     @abstractmethod
-    def execute(self, pet: Pet, db: DB) -> bool:
+    def execute(self, trigger_name: str, pet: Pet, db: DB) -> bool:
         """执行事件，返回是否成功执行"""
         pass
 
@@ -33,7 +33,6 @@ class GeminiAPIEvent(Event):
 
         Args:
             api_key: Gemini API密钥
-            prompt_template: 提示模板，可以包含{name}, {mbti}, {trigger_name}等占位符
         """
 
         try:
@@ -50,6 +49,7 @@ class GeminiAPIEvent(Event):
         执行Gemini API调用
 
         Args:
+            trigger_name: 触发器名称
             pet: 触发事件的宠物
             db: 数据库实例
 

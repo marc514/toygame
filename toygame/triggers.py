@@ -36,16 +36,28 @@ class Trigger(ABC):
 
     @abstractmethod
     def should_trigger(self, pet: Pet, db: DB = None) -> bool:
-        """判断是否应该触发。返回 True 表示需要触发。
-        可选的db参数用于频率控制等需要查询数据库的逻辑。"""
+        """
+        Args:
+            pet: 触发事件的宠物
+            db: 数据库实例，可选参数，用于频率控制等需要查询数据库的逻辑
+
+        Returns:
+            bool: 是否应该触发
+        """
 
     def fire(self, pet: Pet, db: DB) -> bool:
-        """如果满足触发条件，则在数据库上记录触发时间并返回 True；否则返回 False。
+        """
+        Args:
+            pet: 触发事件的宠物
+            db: 数据库实例
 
+        Returns:
+            bool: 是否成功触发
         注：触发时间以 ISO 格式字符串追加到数据库中对应触发器的 JSON 列（由 `DB.record_trigger_time` 完成），
         同时使用本模块的 `datetime.now()`（便于在测试中通过 monkeypatch 控制当前时间）。
         频率控制逻辑在子类的should_trigger方法中实现。
-        同时会触发注册到此触发器的事件。"""
+        同时会触发注册到此触发器的事件。
+        """
         if not self.should_trigger(pet, db):
             return False
 
@@ -54,16 +66,22 @@ class Trigger(ABC):
 
         # 触发注册的事件
         for event in self.events:
-            event.execute(pet, db)
+            event.execute(self.name, pet, db)
 
         return True
 
     def add_event(self, event: Event):
-        """向此触发器添加事件"""
+        """
+        Args:
+            event: 要添加的事件
+        """
         self.events.append(event)
 
     def remove_event(self, event: Event):
-        """从触发器移除事件"""
+        """
+        Args:
+            event: 要移除的事件
+        """
         if event in self.events:
             self.events.remove(event)
 
@@ -77,6 +95,14 @@ class BirthTrigger(Trigger):
     name = "birth"
 
     def should_trigger(self, pet: Pet, db: DB = None) -> bool:
+        """
+        Args:
+            pet: 触发事件的宠物
+            db: 数据库实例，可选参数
+
+        Returns:
+            bool: 是否为宠物生日
+        """
         now = datetime.now()
         # 解析出生日期字符串为月日
         birth_parts = pet.birth_date.split("-")
@@ -99,6 +125,14 @@ class TimerTrigger(Trigger):
     hour: int = 0
 
     def should_trigger(self, pet: Pet, db: DB = None) -> bool:
+        """
+        Args:
+            pet: 触发事件的宠物
+            db: 数据库实例，可选参数
+
+        Returns:
+            bool: 当前小时是否匹配
+        """
         now = datetime.now()
         is_hour_match = now.hour == self.hour
 

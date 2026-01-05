@@ -37,7 +37,13 @@ class Pet:
 
     @staticmethod
     def _parse_iso_list(text: Any):
-        """将 JSON 文本或已经是 list 的值转换为 datetime 列表。"""
+        """
+        Args:
+            text: JSON文本或列表
+
+        Returns:
+            list: 解析后的datetime列表
+        """
         import json
 
         if not text:
@@ -59,11 +65,12 @@ class Pet:
 
     @staticmethod
     def from_row(row: Any) -> "Pet":
-        """从数据库查询返回的一行构造 `Pet` 实例。
+        """
+        Args:
+            row: 数据库查询返回的一行数据`Pet` 实例
 
-        支持 sqlite3.Row 或普通序列（tuple）；期望查询包含以下列（按照常见顺序）::
-            (id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times,
-             breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times)
+        Returns:
+            Pet: 构造的宠物对象
         """
 
         def _get(r, key, idx):

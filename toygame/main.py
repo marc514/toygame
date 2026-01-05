@@ -24,10 +24,14 @@ from .triggers import (
 
 
 def random_pet(name_prefix: str, idx: int) -> Pet:
-    """生成一个具有随机出生日期和随机性别的 Pet 实例。
+    """
+    Args:
+        name_prefix: 宠物名字前缀
+        idx: 宠物索引号
 
-    出生日期随机选择过去 30 天内的某一天，从而在示例运行中能
-    同时触发或不触发生日触发器，增加演示效果。birth_date 以 ISO 字符串保存。
+    Returns:
+        Pet: 随机生成的宠物对象
+    出生日期随机选择过去 30 天内的某一天，birth_date 以 ISO 字符串保存
     """
     # 在过去 0 到 30 天之间随机选择一个天数作为出生日期的偏移
     days_ago = random.randint(0, 30)
@@ -42,8 +46,12 @@ def random_pet(name_prefix: str, idx: int) -> Pet:
     )
 
 
-def create_pets(db: DB, num_pets: int = 5):
-    """在数据库中创建若干随机宠物。"""
+def create_pets(db: DB, num_pets: int = 3):
+    """
+    Args:
+        db: 数据库实例
+        num_pets: 要创建的宠物数量，默认为3
+    """
     # 创建并插入若干宠物
     pets = [random_pet("pet", i + 1) for i in range(num_pets)]
     for p in pets:
@@ -51,11 +59,11 @@ def create_pets(db: DB, num_pets: int = 5):
 
 
 def run_game(db: DB):
-    """执行一次游戏循环：轮询数据库中的所有宠物并运行触发器逻辑。
+    """
+    `run_game` 不负责创建宠物；若在测试或演示中需要先创建宠物，请使用 `create_pets`；
 
-    行为说明：
-    - `run_game` 不负责创建宠物；若在测试或演示中需要先创建宠物，请使用 `create_pets`；
-    - 函数会对数据库中所有宠物轮询触发器，触发器负责决定是否记录触发时间（并保证同一天不重复记录）。
+    Args:
+        db: 数据库实例
     """
 
     # 要轮询的触发器列表（独立事件触发）

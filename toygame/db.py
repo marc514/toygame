@@ -11,7 +11,7 @@
 - `DB.__init__` 在初始化时会 DROP & CREATE `pets` 表以使用最新 schema（会清除旧数据）——
   这是有意的简化设计（不做自动迁移），使用时请注意数据不可恢复；
 - 提供 `triggered_today` 方法以判断某宠物在某日是否已由指定触发器触发；
-  `Trigger.fire` 使用此方法实现“同一宠物、同一触发器在同一天只触发一次”的规则。
+  `Trigger.fire` 使用此方法实现"同一宠物、同一触发器在同一天只触发一次"的规则。
 
 说明：此模块以教学/原型为目标；生产环境请补充迁移、并发控制与更严格的错误处理。
 """
@@ -28,12 +28,24 @@ import datetime as _datetime
 
 
 def _adapt_date(value: _datetime.date) -> bytes:
-    """将 datetime.date 转换为 bytes（ISO 格式字符串）以存储到 SQLite。"""
+    """
+    Args:
+        value: 要转换的日期对象
+
+    Returns:
+        bytes: ISO 格式字符串的字节表示
+    """
     return value.isoformat().encode()
 
 
 def _convert_date(value: bytes) -> _datetime.date:
-    """将 SQLite 字节串（ISO 格式）转换回 datetime.date。"""
+    """
+    Args:
+        value: SQLite 中存储的字节串
+
+    Returns:
+        datetime.date: 转换后的日期对象
+    """
     return _datetime.date.fromisoformat(value.decode())
 
 
@@ -94,11 +106,14 @@ class DB:
         self.conn.commit()
 
     def add_pet(self, pet: Pet) -> Pet:
-        """向数据库插入一条 pet 记录并返回带有 id 的 Pet 实例。
+        """
+        向数据库插入一条 pet 记录并返回带有 id 的 Pet 实例。
+        Args:
+            pet: 要添加的宠物对象
+            `pet.birth_date` 必须为 ISO 格式字符串（'YYYY-MM-DD'），否则抛出 TypeError；
 
-        该方法会修改传入的 pet 对象，设置 pet.id 为数据库分配的主键。
-        要求：`pet.birth_date` 必须为 ISO 格式字符串（'YYYY-MM-DD'），否则抛出 TypeError；
-        `pet.mbti` 会按原样保存为 TEXT（允许空字符串）。
+        Returns:
+            Pet: 添加了ID的宠物对象
         """
         cur = self.conn.cursor()
         # 要求 birth_date 为 ISO 字符串（存储于 TEXT 列），不再支持 date 类型的自动转换
@@ -115,7 +130,13 @@ class DB:
         return pet
 
     def _read_json_list(self, text: str):
-        """解析数据库中 JSON 列，并返回 Python 列表。"""
+        """
+        Args:
+            text: JSON格式的字符串
+
+        Returns:
+            list: 解析后的Python列表
+        """
         import json
 
         try:
@@ -124,13 +145,22 @@ class DB:
             return []
 
     def _write_json_list(self, lst) -> str:
-        """将 Python 列表序列化为 JSON 文本用于存储。"""
+        """
+        Args:
+            lst: 要序列化的 Python 列表
+
+        Returns:
+            str: JSON格式的字符串
+        """
         import json
 
         return json.dumps(lst)
 
     def list_pets(self) -> List[Pet]:
-        """返回数据库中所有 pet 的列表（每项为 Pet 实例），包含触发器时间历史。"""
+        """
+        Returns:
+            List[Pet]: 数据库中所有宠物的列表
+        """
         cur = self.conn.cursor()
         cur.execute(
             "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times FROM pets"
@@ -140,7 +170,14 @@ class DB:
         return [Pet.from_row(r) for r in rows]
 
     def get_trigger_times(self, pet_id: int, trigger_name: str):
-        """返回指定 pet 的某个触发器触发时间列表（datetime 列表），若不存在返回 None。"""
+        """
+        Args:
+            pet_id: 宠物ID
+            trigger_name: 触发器名称
+
+        Returns:
+            list: 触发时间的datetime列表，若不存在返回None
+        """
         # 在数据库中我们使用 JSON 文本保存时间字符串（ISO 格式），
         # 这里根据 trigger_name 选择相应的列并解析为 datetime 对象列表。
         col = None
@@ -169,10 +206,15 @@ class DB:
         return [_dt.fromisoformat(s) for s in times]
 
     def triggered_today(self, pet_id: int, trigger_name: str, today_date=None) -> bool:
-        """判断给定宠物指定触发器当天是否已触发。
+        """
+        Args:
+            pet_id: 宠物ID
+            trigger_name: 触发器名称
+            today_date: 可选的日期或 datetime 对象，默认为今天（便于测试时注入特定日期）
 
-        today_date: 可选的日期或 datetime 对象，默认为今天（便于测试时注入特定日期）。
-        返回 True 表示当日已有触发记录。"""
+        Returns:
+            bool: 如果当日已有触发记录则返回True，否则返回False
+        """
         if today_date is None:
             from datetime import date as _date
 
@@ -192,7 +234,16 @@ class DB:
         return False
 
     def record_trigger_time(self, pet_id: int, trigger_name: str, when_dt):
-        """在对应触发器的时间列表中追加一个时间点（when_dt 为 datetime 实例）。"""
+        """
+        在对应触发器的时间列表中追加一个时间点（when_dt 为 datetime 实例）。
+        Args:
+            pet_id: 宠物ID
+            trigger_name: 触发器名称
+            when_dt: 触发时间的datetime对象
+
+        Returns:
+            bool: 记录是否成功
+        """
         mapping = {
             "birth": "birth_trigger_times",
             "wakeup": "wakeup_trigger_times",
