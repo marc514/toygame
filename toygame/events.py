@@ -3,8 +3,10 @@
 定义事件基类和各种具体事件实现。
 """
 
-from google import genai
 import os
+import time
+
+from google import genai
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -16,7 +18,7 @@ class Event(ABC):
     """事件基类，所有事件应继承此类"""
 
     @abstractmethod
-    def execute(self, trigger_name: str, pet: Pet, db: DB) -> bool:
+    def execute(self, trigger_name: str, pet: Pet, db: DB, **kwargs) -> bool:
         """执行事件，返回是否成功执行"""
         pass
 
@@ -44,7 +46,7 @@ class GeminiAPIEvent(Event):
         self.api_key = api_key
         self.client = genai.Client(api_key=self.api_key)
 
-    def execute(self, trigger_name: str, pet: Pet, db: DB) -> bool:
+    def execute(self, trigger_name: str, pet: Pet, db: DB, **kwargs) -> bool:
         """
         执行Gemini API调用
 
@@ -58,35 +60,47 @@ class GeminiAPIEvent(Event):
         """
 
         try:
-            prompt_template: str = (
-                "Pet {name} with MBTI {mbti} is experiencing {trigger_name}. Provide a fun response in chinese."
-            )
-            prompt = prompt_template.format(
-                name=pet.name,
-                mbti=pet.mbti,
-                trigger_name=trigger_name,
+            # 1. 准备 Prompt
+            prompt = kwargs.get("prompt") or (
+                f"Pet {pet.name} with MBTI {pet.mbti} is experiencing {trigger_name}. "
+                "Provide a fun response in chinese."
             )
 
-            # 从数据库加载聊天历史
+            # 2. 加载聊天历史
             chat_history = db.get_chat_history(pet.id) if pet.id is not None else []
             print(f"chat_history: {chat_history}\n")
 
-            # 创建带有历史记录的chat
-            chat = self.client.chats.create(
-                model="gemini-2.0-flash", history=chat_history
-            )
+            # 3. 执行带重试的 API 调用
+            max_retries = 3
+            response = None
 
-            response = chat.send_message(prompt)
+            for attempt in range(max_retries):
+                try:
+                    chat = self.client.chats.create(
+                        model="gemini-2.0-flash", history=chat_history
+                    )
+                    response = chat.send_message(prompt)
+                    break  # 成功则跳出循环
+                except Exception as e:
+                    if "54" in str(e) or "reset" in str(e).lower():
+                        if attempt < max_retries - 1:
+                            wait_time = (attempt + 1) * 2
+                            print(
+                                f"Connection reset, retrying in {wait_time}s... ({attempt + 1}/{max_retries})"
+                            )
+                            time.sleep(wait_time)
+                            continue
+                    raise e
+
+            if not response:
+                return False
+
             print(f"Gemini: {response.text}\n")
 
-            # 获取当前聊天上下文
+            # 4. 更新并保存历史记录
             context = chat.get_history()
-            print(f"Current chat context length: {len(context)}")
-
-            # 将聊天历史转换为可序列化的格式
             serializable_context = []
             for message in context:
-                # 将消息对象转换为字典格式
                 message_dict = {
                     "role": getattr(message, "role", "unknown"),
                     "parts": [],

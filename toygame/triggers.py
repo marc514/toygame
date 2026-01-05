@@ -13,13 +13,15 @@
 - 触发时间由本模块的 `datetime.now()` 提供（方便在测试中通过 monkeypatch 替换）。
 """
 
+import os
+
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, List
 
 from .models import Pet
 from .db import DB
-from .events import Event
+from .events import Event, GeminiAPIEvent
 
 
 class Trigger(ABC):
@@ -45,7 +47,7 @@ class Trigger(ABC):
             bool: 是否应该触发
         """
 
-    def fire(self, pet: Pet, db: DB) -> bool:
+    def fire(self, pet: Pet, db: DB, **kwargs) -> bool:
         """
         Args:
             pet: 触发事件的宠物
@@ -66,7 +68,7 @@ class Trigger(ABC):
 
         # 触发注册的事件
         for event in self.events:
-            event.execute(self.name, pet, db)
+            event.execute(self.name, pet, db, **kwargs)
 
         return True
 
@@ -94,6 +96,13 @@ class BirthTrigger(Trigger):
 
     name = "birth"
 
+    def __init__(self):
+        super().__init__()
+        # 自动从环境变量获取 API Key 并注册 GeminiAPIEvent
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            self.add_event(GeminiAPIEvent(api_key))
+
     def should_trigger(self, pet: Pet, db: DB = None) -> bool:
         """
         Args:
@@ -116,6 +125,15 @@ class BirthTrigger(Trigger):
             return False
 
         return is_birthday
+
+    def fire(self, pet: Pet, db: DB, **kwargs) -> bool:
+        """
+        覆盖基类的 fire 方法，在触发时传入特定的生日 prompt。
+        """
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        prompt = f"今天是 {date_str}。宠物 {pet.name}（MBTI: {pet.mbti}）正在过生日！请用中文提供一个有趣的庆祝回复。"
+        return super().fire(pet, db, prompt=prompt, **kwargs)
 
 
 class TimerTrigger(Trigger):
