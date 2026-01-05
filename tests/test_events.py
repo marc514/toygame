@@ -15,9 +15,24 @@ def test_gemini_api_event_execute_with_real_api(tmp_path, monkeypatch):
 
     # 创建测试数据
     dbfile = tmp_path / "test.db"
+    # 可以提供一个已存在的数据库文件路径，用于测试
+    # dbfile = "/tmp/pytest-of-megvii/pytest-35/test_gemini_api_event_execute_0/test.db"
     db = DB(str(dbfile))
-    pet = Pet(id=1, name="TestPet1", birth_date="2023-01-01", gender="M", mbti="INTJ")
-    pet = db.add_pet(pet)
+    # 如果数据库中没有id为1的宠物，就创建一个
+    pets = db.get_pets(pet_ids=[1])
+    if not pets:  # 检查列表是否为空，而不是检查是否为None
+        pet = db.add_pet(
+            Pet(
+                id=None,
+                name="TestPet1",
+                birth_date="2023-01-01",
+                gender="M",
+                mbti="INTJ",
+            )
+        )
+    else:
+        pet = pets[0]
+
     # 创建事件实例，使用真实API密钥
     event = GeminiAPIEvent(api_key=api_key)
 

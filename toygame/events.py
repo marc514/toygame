@@ -67,14 +67,47 @@ class GeminiAPIEvent(Event):
                 trigger_name=trigger_name,
             )
 
-            chat = self.client.chats.create(model="gemini-2.0-flash")
+            # 从数据库加载聊天历史
+            chat_history = db.get_chat_history(pet.id) if pet.id is not None else []
+            print(f"chat_history: {chat_history}\n")
+
+            # 创建带有历史记录的chat
+            chat = self.client.chats.create(
+                model="gemini-2.0-flash", history=chat_history
+            )
+
             response = chat.send_message(prompt)
             print(f"Gemini: {response.text}\n")
 
-            # 显示当前聊天上下文
+            # 获取当前聊天上下文
             context = chat.get_history()
-            print(f"Current chat context: {context}")
             print(f"Current chat context length: {len(context)}")
+
+            # 将聊天历史转换为可序列化的格式
+            serializable_context = []
+            for message in context:
+                # 将消息对象转换为字典格式
+                message_dict = {
+                    "role": getattr(message, "role", "unknown"),
+                    "parts": [],
+                }
+                # 获取消息内容部分
+                parts = getattr(message, "parts", [])
+                for part in parts:
+                    # 尝试提取文本内容
+                    if hasattr(part, "text"):
+                        # 确保文本内容是字符串类型
+                        message_dict["parts"].append({"text": str(part.text)})
+                    elif hasattr(part, "to_dict"):
+                        message_dict["parts"].append(part.to_dict())
+                    else:
+                        message_dict["parts"].append(str(part))
+
+                serializable_context.append(message_dict)
+
+            # 将聊天历史存入数据库
+            if pet.id is not None:
+                db.update_chat_history(pet.id, serializable_context)
 
             return True
 

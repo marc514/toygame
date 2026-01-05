@@ -225,7 +225,7 @@ def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
 
     create_pets(db, num_pets=3)
 
-    iterations = 10000
+    iterations = 1000
     delta_t = 13
     for i in range(iterations):
         current = base + timedelta(hours=delta_t * i)

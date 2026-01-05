@@ -4,6 +4,8 @@
 `Pet` 使用简单的 dataclass 表示，并提供从数据库行转换为实例的辅助方法。
 """
 
+import json
+
 from dataclasses import dataclass
 from typing import Optional, List, Any
 from datetime import datetime
@@ -20,6 +22,7 @@ class Pet:
         gender: 性别标记（例如 "M" 或 "F"）。
         mbti: MBTI 性格代码（如 "INTJ"）。
         *_trigger_times: 各类触发器的触发时间列表（datetime 列表），由数据库中的 JSON 列解析而来。
+        chat_history: 存储与宠物的聊天历史
     """
 
     id: Optional[int]
@@ -34,6 +37,7 @@ class Pet:
     breakfast_trigger_times: Optional[List[datetime]] = None
     lunch_trigger_times: Optional[List[datetime]] = None
     dinner_trigger_times: Optional[List[datetime]] = None
+    chat_history: Optional[List[Any]] = None
 
     @staticmethod
     def _parse_iso_list(text: Any):
@@ -129,5 +133,15 @@ class Pet:
             )
         except Exception:
             pet.dinner_trigger_times = []
+
+        # 解析聊天历史
+        try:
+            chat_history_text = _get(row, "chat_history", 11)
+            if chat_history_text:
+                pet.chat_history = json.loads(chat_history_text)
+            else:
+                pet.chat_history = []
+        except Exception:
+            pet.chat_history = []
 
         return pet

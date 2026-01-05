@@ -48,114 +48,144 @@ def test_recreate_overwrites_old_db(tmp_path):
     assert count == 0
 
 
-def test_search_pets_by_ids(tmp_path):
+def test_get_pets_by_ids(tmp_path):
     """测试通过ID列表搜索宠物"""
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
-    
+
     # 创建几个宠物
-    pet1 = Pet(id=0, name="Pet1", birth_date=date.today().isoformat(), gender="M", mbti="INTJ")
-    pet2 = Pet(id=0, name="Pet2", birth_date=date.today().isoformat(), gender="F", mbti="ENFP")
-    pet3 = Pet(id=0, name="Pet3", birth_date=date.today().isoformat(), gender="M", mbti="ISTP")
-    
+    pet1 = Pet(
+        id=0, name="Pet1", birth_date=date.today().isoformat(), gender="M", mbti="INTJ"
+    )
+    pet2 = Pet(
+        id=0, name="Pet2", birth_date=date.today().isoformat(), gender="F", mbti="ENFP"
+    )
+    pet3 = Pet(
+        id=0, name="Pet3", birth_date=date.today().isoformat(), gender="M", mbti="ISTP"
+    )
+
     pet1 = db.add_pet(pet1)
     pet2 = db.add_pet(pet2)
     pet3 = db.add_pet(pet3)
-    
+
     # 测试搜索特定ID
-    result = db.search_pets(pet_ids=[pet1.id, pet3.id])
+    result = db.get_pets(pet_ids=[pet1.id, pet3.id])
     assert len(result) == 2
     assert result[0].id == pet1.id
     assert result[1].id == pet3.id
     assert result[0].name == "Pet1"
     assert result[1].name == "Pet3"
-    
+
     # 测试搜索不存在的ID
-    result = db.search_pets(pet_ids=[999])
+    result = db.get_pets(pet_ids=[999])
     assert len(result) == 0
-    
+
     # 测试搜索单个ID
-    result = db.search_pets(pet_ids=[pet2.id])
+    result = db.get_pets(pet_ids=[pet2.id])
     assert len(result) == 1
     assert result[0].id == pet2.id
     assert result[0].name == "Pet2"
 
 
-def test_search_pets_by_names(tmp_path):
+def test_get_pets_by_names(tmp_path):
     """测试通过名称列表搜索宠物"""
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
-    
+
     # 创建几个宠物
-    pet1 = Pet(id=0, name="Alice", birth_date=date.today().isoformat(), gender="F", mbti="INTJ")
-    pet2 = Pet(id=0, name="Bob", birth_date=date.today().isoformat(), gender="M", mbti="ENFP")
-    pet3 = Pet(id=0, name="Charlie", birth_date=date.today().isoformat(), gender="M", mbti="ISTP")
-    
+    pet1 = Pet(
+        id=0, name="Alice", birth_date=date.today().isoformat(), gender="F", mbti="INTJ"
+    )
+    pet2 = Pet(
+        id=0, name="Bob", birth_date=date.today().isoformat(), gender="M", mbti="ENFP"
+    )
+    pet3 = Pet(
+        id=0,
+        name="Charlie",
+        birth_date=date.today().isoformat(),
+        gender="M",
+        mbti="ISTP",
+    )
+
     pet1 = db.add_pet(pet1)
     pet2 = db.add_pet(pet2)
     pet3 = db.add_pet(pet3)
-    
+
     # 测试搜索特定名称
-    result = db.search_pets(pet_names=["Alice", "Charlie"])
+    result = db.get_pets(pet_names=["Alice", "Charlie"])
     assert len(result) == 2
     assert result[0].name == "Alice"
     assert result[1].name == "Charlie"
     assert result[0].id == pet1.id
     assert result[1].id == pet3.id
-    
+
     # 测试搜索不存在的名称
-    result = db.search_pets(pet_names=["NonExistent"])
+    result = db.get_pets(pet_names=["NonExistent"])
     assert len(result) == 0
-    
+
     # 测试搜索单个名称
-    result = db.search_pets(pet_names=["Bob"])
+    result = db.get_pets(pet_names=["Bob"])
     assert len(result) == 1
     assert result[0].name == "Bob"
     assert result[0].id == pet2.id
 
 
-def test_search_pets_by_both_ids_and_names(tmp_path):
+def test_get_pets_by_both_ids_and_names(tmp_path):
     """测试同时使用ID和名称搜索（OR条件）"""
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
-    
+
     # 创建几个宠物
-    pet1 = Pet(id=0, name="Alice", birth_date=date.today().isoformat(), gender="F", mbti="INTJ")
-    pet2 = Pet(id=0, name="Bob", birth_date=date.today().isoformat(), gender="M", mbti="ENFP")
-    pet3 = Pet(id=0, name="Charlie", birth_date=date.today().isoformat(), gender="M", mbti="ISTP")
-    
+    pet1 = Pet(
+        id=0, name="Alice", birth_date=date.today().isoformat(), gender="F", mbti="INTJ"
+    )
+    pet2 = Pet(
+        id=0, name="Bob", birth_date=date.today().isoformat(), gender="M", mbti="ENFP"
+    )
+    pet3 = Pet(
+        id=0,
+        name="Charlie",
+        birth_date=date.today().isoformat(),
+        gender="M",
+        mbti="ISTP",
+    )
+
     pet1 = db.add_pet(pet1)
     pet2 = db.add_pet(pet2)
     pet3 = db.add_pet(pet3)
-    
+
     # 测试同时使用ID和名称搜索 - 找到匹配ID或名称的宠物（OR关系）
-    result = db.search_pets(pet_ids=[pet1.id], pet_names=["Charlie"])
+    result = db.get_pets(pet_ids=[pet1.id], pet_names=["Charlie"])
     assert len(result) == 2
     pet_ids = {p.id for p in result}
     assert pet1.id in pet_ids
     assert pet3.id in pet_ids
-    
+
     # 测试找不到匹配项的情况
-    result = db.search_pets(pet_ids=[999], pet_names=["NonExistent"])
+    result = db.get_pets(pet_ids=[999], pet_names=["NonExistent"])
     assert len(result) == 0
 
 
-def test_search_pets_empty_conditions(tmp_path):
+def test_get_pets_empty_conditions(tmp_path):
     """测试不提供任何搜索条件时的行为"""
     dbfile = tmp_path / "test.db"
     db = DB(str(dbfile))
-    
+
     # 创建几个宠物
-    pet1 = Pet(id=0, name="Alice", birth_date=date.today().isoformat(), gender="F", mbti="INTJ")
-    pet2 = Pet(id=0, name="Bob", birth_date=date.today().isoformat(), gender="M", mbti="ENFP")
-    
+    pet1 = Pet(
+        id=0, name="Alice", birth_date=date.today().isoformat(), gender="F", mbti="INTJ"
+    )
+    pet2 = Pet(
+        id=0, name="Bob", birth_date=date.today().isoformat(), gender="M", mbti="ENFP"
+    )
+
     pet1 = db.add_pet(pet1)
     pet2 = db.add_pet(pet2)
-    
+
     # 不提供任何条件，应该不返回任何宠物
-    result = db.search_pets()
+    result = db.get_pets()
     assert len(result) == 0
-    
+
     # 提供空列表作为条件，应该不返回任何宠物
-    result = db.search_pets(pet_ids=[], pet_names=[])
+    result = db.get_pets(pet_ids=[], pet_names=[])
     assert len(result) == 0

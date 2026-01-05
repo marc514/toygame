@@ -36,3 +36,8 @@ pytest -q
 python -m toygame.main
 ```
 
+提交代码：
+- 代码风格black, 24.8.0
+```bash
+black .
+```

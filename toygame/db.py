@@ -16,6 +16,7 @@
 说明：此模块以教学/原型为目标；生产环境请补充迁移、并发控制与更严格的错误处理。
 """
 
+import json
 import sqlite3
 from datetime import date
 from typing import List, Optional, Tuple
@@ -78,32 +79,171 @@ class DB:
         self._init_tables()
 
     def _init_tables(self):
-        """彻底重建 pets 表到最新定义（会删除旧表并重建）。
-
-        注意：此行为会**清除**表中已有数据。按用户要求，不再尝试兼容旧数据库，
-        每次初始化使用最新表结构。"""
+        """初始化 pets 表，如果表结构不匹配则重建（会删除旧表并重建），
+        如果表结构已匹配则保留数据。"""
         cur = self.conn.cursor()
-        # 删除旧表（如果存在），然后创建全新的表结构
-        cur.execute("DROP TABLE IF EXISTS pets")
+
+        # 检查表是否存在
         cur.execute(
-            """
-            CREATE TABLE pets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                birth_date TEXT NOT NULL,
-                gender TEXT NOT NULL,
-                mbti TEXT NOT NULL DEFAULT '',
-                -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
-                birth_trigger_times TEXT NOT NULL DEFAULT '[]',
-                wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
-                bed_trigger_times TEXT NOT NULL DEFAULT '[]',
-                breakfast_trigger_times TEXT NOT NULL DEFAULT '[]',
-                lunch_trigger_times TEXT NOT NULL DEFAULT '[]',
-                dinner_trigger_times TEXT NOT NULL DEFAULT '[]'
-            )
-            """
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='pets';"
         )
-        self.conn.commit()
+        table_exists = cur.fetchone() is not None
+
+        if not table_exists:
+            # 如果表不存在，直接创建新表
+            cur.execute(
+                """
+                CREATE TABLE pets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    birth_date TEXT NOT NULL,
+                    gender TEXT NOT NULL,
+                    mbti TEXT NOT NULL DEFAULT '',
+                    -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
+                    birth_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    bed_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    breakfast_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    lunch_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    dinner_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    -- 存储聊天历史的 JSON 列
+                    chat_history TEXT NOT NULL DEFAULT '[]'
+                )
+                """
+            )
+            self.conn.commit()
+            return
+
+        # 如果表存在，检查表结构是否匹配
+        cur.execute("PRAGMA table_info(pets)")
+        existing_columns = cur.fetchall()
+
+        # 定义期望的列结构 - 注意：这里需要与实际创建表的列完全匹配
+        expected_columns = [
+            ("id", "INTEGER", 0, None, 1),
+            ("name", "TEXT", 1, None, 1),
+            ("birth_date", "TEXT", 1, None, 0),
+            ("gender", "TEXT", 1, None, 0),
+            ("mbti", "TEXT", 1, "", 0),
+            ("birth_trigger_times", "TEXT", 1, "[]", 0),
+            ("wakeup_trigger_times", "TEXT", 1, "[]", 0),
+            ("bed_trigger_times", "TEXT", 1, "[]", 0),
+            ("breakfast_trigger_times", "TEXT", 1, "[]", 0),
+            ("lunch_trigger_times", "TEXT", 1, "[]", 0),
+            ("dinner_trigger_times", "TEXT", 1, "[]", 0),
+            ("chat_history", "TEXT", 1, "[]", 0),
+        ]
+
+        # 检查列数量是否匹配
+        if len(existing_columns) != len(expected_columns):
+            # 列数量不匹配，需要重建表
+            print("Table structure mismatch: column count differs. Rebuilding table...")
+            cur.execute("DROP TABLE IF EXISTS pets")
+            cur.execute(
+                """
+                CREATE TABLE pets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    birth_date TEXT NOT NULL,
+                    gender TEXT NOT NULL,
+                    mbti TEXT NOT NULL DEFAULT '',
+                    -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
+                    birth_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    bed_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    breakfast_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    lunch_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    dinner_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    -- 存储聊天历史的 JSON 列
+                    chat_history TEXT NOT NULL DEFAULT '[]'
+                )
+                """
+            )
+            self.conn.commit()
+            return
+
+        # 检查每一列的定义是否匹配
+        structure_matches = True
+        for i, expected_col in enumerate(expected_columns):
+            if i >= len(existing_columns):
+                structure_matches = False
+                break
+
+            existing_col = existing_columns[i]
+            # 比较列名、类型
+            # existing_col格式: (cid, name, type, notnull, dflt_value, pk)
+            # expected_col格式: (name, type, notnull, dflt_value, pk)
+            if (
+                existing_col[1] != expected_col[0]  # name
+                or existing_col[2] != expected_col[1]
+            ):  # type
+                structure_matches = False
+                break
+
+        if not structure_matches:
+            # 表结构不匹配，备份数据后重建表
+            print("Table structure mismatch. Rebuilding table...")
+            # 为了保留现有数据，我们先备份现有数据
+            cur.execute("SELECT * FROM pets")
+            existing_data = cur.fetchall()
+
+            # 获取列名
+            cur.execute("PRAGMA table_info(pets)")
+            col_info = cur.fetchall()
+            col_names = [col[1] for col in col_info]
+
+            # 重建表
+            cur.execute("DROP TABLE IF EXISTS pets")
+            cur.execute(
+                """
+                CREATE TABLE pets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    birth_date TEXT NOT NULL,
+                    gender TEXT NOT NULL,
+                    mbti TEXT NOT NULL DEFAULT '',
+                    -- 为每种触发器存储触发时间的 JSON 列（ISO 格式字符串列表）
+                    birth_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    wakeup_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    bed_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    breakfast_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    lunch_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    dinner_trigger_times TEXT NOT NULL DEFAULT '[]',
+                    -- 存储聊天历史的 JSON 列
+                    chat_history TEXT NOT NULL DEFAULT '[]'
+                )
+                """
+            )
+
+            # 尝试插入备份的数据
+            if existing_data:
+                # 确定可以插入的列
+                target_cols = ["name", "birth_date", "gender", "mbti"]
+                # 确保源数据中的列在目标表中也存在
+                for row in existing_data:
+                    # 构建插入语句，只插入存在的列
+                    if len(row) >= 4:  # 确保有足够的列
+                        cur.execute(
+                            "INSERT INTO pets (name, birth_date, gender, mbti) VALUES (?, ?, ?, ?)",
+                            (
+                                row[1] if len(row) > 1 else "",
+                                row[2] if len(row) > 2 else "",
+                                row[3] if len(row) > 3 else "",
+                                row[4] if len(row) > 4 else "",
+                            ),
+                        )
+
+            self.conn.commit()
+        else:
+            print("Table structure matches. No need to rebuild.")
+            # 检查是否有chat_history列，如果没有则添加
+            has_chat_history = any(col[1] == "chat_history" for col in existing_columns)
+            if not has_chat_history:
+                print("Adding chat_history column...")
+                cur.execute(
+                    "ALTER TABLE pets ADD COLUMN chat_history TEXT NOT NULL DEFAULT '[]'"
+                )
+                self.conn.commit()
 
     def add_pet(self, pet: Pet) -> Pet:
         """
@@ -163,52 +303,54 @@ class DB:
         """
         cur = self.conn.cursor()
         cur.execute(
-            "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times FROM pets"
+            "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times, chat_history FROM pets"
         )
         rows = cur.fetchall()
         # 将每一行（sqlite3.Row）传给 Pet.from_row，由其解析触发器时间列
         return [Pet.from_row(r) for r in rows]
 
-    def search_pets(self, pet_ids: List[int] = None, pet_names: List[str] = None) -> List[Pet]:
+    def get_pets(
+        self, pet_ids: List[int] = None, pet_names: List[str] = None
+    ) -> List[Pet]:
         """根据可选的ID列表或名称列表搜索宠物
-        
+
         Args:
             pet_ids: 可选的宠物ID列表，如果提供则搜索指定ID的宠物
             pet_names: 可选的宠物名称列表，如果提供则搜索指定名称的宠物
-            
+
         Returns:
             List[Pet]: 匹配搜索条件的宠物列表
         """
         cur = self.conn.cursor()
-        
+
         # 如果没有提供任何搜索条件，返回空列表
         if not pet_ids and not pet_names:
             return []
-        
+
         # 构建查询语句和参数
-        query = "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times FROM pets"
+        query = "SELECT id, name, birth_date, gender, mbti, birth_trigger_times, wakeup_trigger_times, bed_trigger_times, breakfast_trigger_times, lunch_trigger_times, dinner_trigger_times, chat_history FROM pets"
         params = []
         conditions = []
-        
+
         if pet_ids:
             # 添加ID条件
-            id_placeholders = ','.join(['?' for _ in pet_ids])
+            id_placeholders = ",".join(["?" for _ in pet_ids])
             conditions.append(f"id IN ({id_placeholders})")
             params.extend(pet_ids)
-            
+
         if pet_names:
             # 添加名称条件
-            name_placeholders = ','.join(['?' for _ in pet_names])
+            name_placeholders = ",".join(["?" for _ in pet_names])
             conditions.append(f"name IN ({name_placeholders})")
             params.extend(pet_names)
-        
+
         if conditions:
             # 使用OR连接条件（而不是AND）
             query += " WHERE " + " OR ".join(conditions)
-        
+
         cur.execute(query, params)
         rows = cur.fetchall()
-        
+
         # 将每一行（sqlite3.Row）传给 Pet.from_row，由其解析触发器时间列
         return [Pet.from_row(r) for r in rows]
 
@@ -310,3 +452,47 @@ class DB:
         new_text = self._write_json_list(current)
         cur.execute(f"UPDATE pets SET {col} = ? WHERE id = ?", (new_text, pet_id))
         self.conn.commit()
+
+    def get_chat_history(self, pet_id: int):
+        """
+        获取宠物的聊天历史
+        Args:
+            pet_id: 宠物ID
+
+        Returns:
+            list: 聊天历史列表，如果不存在则返回空列表
+        """
+        import json
+
+        try:
+            cur = self.conn.cursor()
+            cur.execute("SELECT chat_history FROM pets WHERE id = ?", (pet_id,))
+            result = cur.fetchone()
+            if result and result[0]:
+                return json.loads(result[0])
+            return []
+        except Exception as e:
+            print(f"Error getting chat history for pet {pet_id}: {str(e)}")
+            return []
+
+    def update_chat_history(self, pet_id: int, chat_history):
+        """
+        更新宠物的聊天历史
+        Args:
+            pet_id: 宠物ID
+            chat_history: 聊天历史列表
+
+        Returns:
+            bool: 更新是否成功
+        """
+        try:
+            cur = self.conn.cursor()
+            history_json = json.dumps(chat_history)
+            cur.execute(
+                "UPDATE pets SET chat_history = ? WHERE id = ?", (history_json, pet_id)
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error updating chat history for pet {pet_id}: {str(e)}")
+            return False
