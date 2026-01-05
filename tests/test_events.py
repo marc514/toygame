@@ -18,16 +18,13 @@ def test_gemini_api_event_execute_with_real_api():
     db = Mock(spec=DB)
 
     # 创建事件实例，使用真实API密钥
-    event = GeminiAPIEvent(
-        api_key=api_key,
-        prompt_template="Hello {name} with MBTI {mbti}! This is a test prompt for trigger {trigger_name}. Respond with a fun message.",
-    )
+    event = GeminiAPIEvent(api_key=api_key)
 
     # 设置触发器名称
-    event._trigger_name = "test_trigger"
+    trigger_name = "test_trigger"
 
     # 执行事件
-    result = event.execute(pet, db)
+    result = event.execute(trigger_name, pet, db)
 
     # 验证结果
     assert result is True, "API调用应该成功"

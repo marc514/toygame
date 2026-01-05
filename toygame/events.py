@@ -27,7 +27,6 @@ class GeminiAPIEvent(Event):
     def __init__(
         self,
         api_key: str,
-        prompt_template: str = "Pet {name} with MBTI {mbti} is experiencing {trigger_name}. Provide a fun response.",
     ):
         """
         初始化Gemini API事件
@@ -40,20 +39,13 @@ class GeminiAPIEvent(Event):
         try:
             from google import genai
         except ImportError:
-            print(
-                "Google Generative AI library not installed. Please install with: pip install google-generativeai"
-            )
+            print("Google genai library not installed. Please install google-genai.")
             raise
 
-        # 1. 初始化客户端
         self.api_key = api_key
-        self.prompt_template = prompt_template
         self.client = genai.Client(api_key=self.api_key)
 
-        # 2. 开启聊天会话，新版 SDK 会自动管理上下文
-        self.chat = self.client.chats.create(model="gemini-2.0-flash")
-
-    def execute(self, pet: Pet, db: DB) -> bool:
+    def execute(self, trigger_name: str, pet: Pet, db: DB) -> bool:
         """
         执行Gemini API调用
 
@@ -66,14 +58,23 @@ class GeminiAPIEvent(Event):
         """
 
         try:
-            prompt = self.prompt_template.format(
+            prompt_template: str = (
+                "Pet {name} with MBTI {mbti} is experiencing {trigger_name}. Provide a fun response in chinese."
+            )
+            prompt = prompt_template.format(
                 name=pet.name,
                 mbti=pet.mbti,
-                trigger_name=getattr(self, "_trigger_name", "unknown"),
+                trigger_name=trigger_name,
             )
 
-            response = self.chat.send_message(prompt)
+            chat = self.client.chats.create(model="gemini-2.0-flash")
+            response = chat.send_message(prompt)
             print(f"Gemini: {response.text}\n")
+
+            # 显示当前聊天上下文
+            context = chat.get_history()
+            print(f"Current chat context: {context}")
+            print(f"Current chat context length: {len(context)}")
 
             return True
 
