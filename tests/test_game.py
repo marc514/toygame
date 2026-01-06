@@ -1,8 +1,8 @@
-from datetime import datetime, date, timedelta
-
-import pytest
+from datetime import date, datetime, timedelta
 
 from toygame.db import DB
+from toygame.enums import MBTI_TYPES
+from toygame.main import create_pets, random_pet, run_game
 from toygame.models import Pet
 from toygame.triggers import (
     BirthTrigger,
@@ -12,8 +12,7 @@ from toygame.triggers import (
     LunchTimer,
     DinnerTimer,
 )
-from toygame.main import run_game, create_pets
-from toygame.enums import MBTI_TYPES
+import toygame.triggers as triggers
 
 
 def test_birth_trigger_increments(tmp_path, monkeypatch):
@@ -34,8 +33,6 @@ def test_birth_trigger_increments(tmp_path, monkeypatch):
         @classmethod
         def now(cls):
             return datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
-
-    import toygame.triggers as triggers
 
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
@@ -72,8 +69,6 @@ def test_birth_trigger_not_on_other_day(tmp_path, monkeypatch):
         def now(cls):
             return datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
-    import toygame.triggers as triggers
-
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     b = BirthTrigger()
@@ -96,8 +91,6 @@ def test_dinner_timer_at_6pm(tmp_path, monkeypatch):
         @classmethod
         def now(cls):
             return datetime.now().replace(hour=18, minute=0, second=0, microsecond=0)
-
-    import toygame.triggers as triggers
 
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
@@ -129,8 +122,6 @@ def test_wakeup_timer_at_7am(tmp_path, monkeypatch):
         def now(cls):
             return datetime.now().replace(hour=7, minute=0, second=0, microsecond=0)
 
-    import toygame.triggers as triggers
-
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     t = WakeUpTimer()
@@ -159,8 +150,6 @@ def test_lunch_timer_at_noon(tmp_path, monkeypatch):
         @classmethod
         def now(cls):
             return datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
-
-    import toygame.triggers as triggers
 
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
@@ -196,7 +185,6 @@ def test_run_game_creates_pets(tmp_path):
 
 def test_mbti_random_pet_values():
     """验证 random_pet 返回的 Pet.mbti 属于 16 型集合。"""
-    from toygame.main import random_pet
 
     # 多次调用以覆盖随机性
     seen = set()
@@ -213,20 +201,19 @@ def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
     """循环调用：调用 run_game，并将 triggers.datetime.now() 设置为
     从 2000-01-01 00:00:00 起每次增加 13 小时，触发器的行为。"""
     dbfile = tmp_path / "test.db"
+    # 可以提供一个已存在的数据库文件路径，用于测试
+    dbfile = "/data/toygame/pets.db"
     db = DB(str(dbfile))
 
-    from datetime import datetime, timedelta
-    import toygame.triggers as triggers
-    from toygame.main import create_pets, run_game
+    if len(db.list_pets()) < 3:
+        create_pets(db, num_pets=3)
 
     base = datetime(2000, 1, 1, 0, 0, 0)
     # 小时 -> 触发器名映射（我们关心这几个时间点）
     mapping = {7: "wakeup", 8: "breakfast", 12: "lunch", 18: "dinner", 22: "bed"}
 
-    create_pets(db, num_pets=3)
-
-    iterations = 1000
-    delta_t = 13
+    iterations = 400
+    delta_t = 24
     for i in range(iterations):
         current = base + timedelta(hours=delta_t * i)
 

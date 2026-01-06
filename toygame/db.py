@@ -16,16 +16,15 @@
 说明：此模块以教学/原型为目标；生产环境请补充迁移、并发控制与更严格的错误处理。
 """
 
-import json
-import sqlite3
-from datetime import date
-from typing import List, Optional, Tuple
-
-from .models import Pet
-
 # 解决 Python 3.12+ 对 sqlite3 默认 date adapter/converter 的弃用警告：
 # 显式注册日期类型的 adapter 与 converter，避免依赖 sqlite3 的默认行为。
 import datetime as _datetime
+import json
+import sqlite3
+from datetime import date
+from typing import List
+
+from .models import Pet
 
 
 def _adapt_date(value: _datetime.date) -> bytes:
@@ -402,9 +401,7 @@ class DB:
             bool: 如果当日已有触发记录则返回True，否则返回False
         """
         if today_date is None:
-            from datetime import date as _date
-
-            today_date = _date.today()
+            today_date = date.today()
         # 支持传入 datetime 对象或 date 对象
         try:
             d = today_date.date()

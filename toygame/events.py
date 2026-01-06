@@ -3,15 +3,12 @@
 定义事件基类和各种具体事件实现。
 """
 
-import os
 import time
-
-from google import genai
 from abc import ABC, abstractmethod
-from typing import Any
+from google import genai
 
-from .models import Pet
 from .db import DB
+from .models import Pet
 
 
 class Event(ABC):
@@ -118,6 +115,7 @@ class GeminiAPIEvent(Event):
                         message_dict["parts"].append(str(part))
 
                 serializable_context.append(message_dict)
+            print(f"len(serializable_context): {len(serializable_context)}\n")
 
             # 将聊天历史存入数据库
             if pet.id is not None:

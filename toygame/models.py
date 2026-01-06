@@ -5,10 +5,9 @@
 """
 
 import json
-
 from dataclasses import dataclass
-from typing import Optional, List, Any
 from datetime import datetime
+from typing import Any, List, Optional
 
 
 @dataclass

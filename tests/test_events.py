@@ -1,9 +1,10 @@
-import pytest
-from unittest.mock import Mock
 import os
+
+import pytest
+
+from toygame.db import DB
 from toygame.events import GeminiAPIEvent
 from toygame.models import Pet
-from toygame.db import DB
 
 
 def test_gemini_api_event_execute_with_real_api(tmp_path, monkeypatch):
@@ -16,7 +17,7 @@ def test_gemini_api_event_execute_with_real_api(tmp_path, monkeypatch):
     # 创建测试数据
     dbfile = tmp_path / "test.db"
     # 可以提供一个已存在的数据库文件路径，用于测试
-    # dbfile = "/tmp/pytest-of-megvii/pytest-35/test_gemini_api_event_execute_0/test.db"
+    dbfile = "/data/toygame/pets.db"
     db = DB(str(dbfile))
     # 如果数据库中没有id为1的宠物，就创建一个
     pets = db.get_pets(pet_ids=[1])

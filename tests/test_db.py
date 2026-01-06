@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import date
+
 from toygame.db import DB
 from toygame.models import Pet
 

@@ -14,14 +14,13 @@
 """
 
 import os
-
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, List
+from typing import List
 
-from .models import Pet
 from .db import DB
 from .events import Event, GeminiAPIEvent
+from .models import Pet
 
 
 class Trigger(ABC):
