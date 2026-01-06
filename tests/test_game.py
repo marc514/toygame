@@ -1,5 +1,9 @@
+import asyncio
 from datetime import date, datetime, timedelta
 
+import pytest
+
+import toygame.triggers as triggers
 from toygame.db import DB
 from toygame.enums import MBTI_TYPES
 from toygame.main import create_pets, random_pet, run_game
@@ -12,7 +16,6 @@ from toygame.triggers import (
     LunchTimer,
     DinnerTimer,
 )
-import toygame.triggers as triggers
 
 
 def test_birth_trigger_increments(tmp_path, monkeypatch):
@@ -38,14 +41,14 @@ def test_birth_trigger_increments(tmp_path, monkeypatch):
 
     b = BirthTrigger()
 
-    fired = b.fire(pet, db)
+    fired = asyncio.run(b.fire(pet, db))
     assert fired
     times = db.get_trigger_times(pet.id, "birth")
     assert len(times) == 1
 
     # 再次触发应继续追加时间点
     # 当天已触发过则不再记录第二次
-    fired2 = b.fire(pet, db)
+    fired2 = asyncio.run(b.fire(pet, db))
     assert not fired2
     times = db.get_trigger_times(pet.id, "birth")
     assert len(times) == 1
@@ -72,7 +75,7 @@ def test_birth_trigger_not_on_other_day(tmp_path, monkeypatch):
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     b = BirthTrigger()
-    fired = b.fire(pet, db)
+    fired = asyncio.run(b.fire(pet, db))
     assert not fired
     times = db.get_trigger_times(pet.id, "birth")
     assert len(times) == 0
@@ -95,14 +98,14 @@ def test_dinner_timer_at_6pm(tmp_path, monkeypatch):
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     t = DinnerTimer()
-    fired = t.fire(pet, db)
+    fired = asyncio.run(t.fire(pet, db))
     assert fired
     times = db.get_trigger_times(pet.id, "dinner")
     assert len(times) == 1
     # 确认记录的时间小时为 18
     assert times[0].hour == 18
     # 再次触发当天不应重复记录
-    fired2 = t.fire(pet, db)
+    fired2 = asyncio.run(t.fire(pet, db))
     assert not fired2
     times = db.get_trigger_times(pet.id, "dinner")
     assert len(times) == 1
@@ -125,13 +128,13 @@ def test_wakeup_timer_at_7am(tmp_path, monkeypatch):
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     t = WakeUpTimer()
-    fired = t.fire(pet, db)
+    fired = asyncio.run(t.fire(pet, db))
     assert fired
     times = db.get_trigger_times(pet.id, "wakeup")
     assert len(times) == 1
     assert times[0].hour == 7
     # 再触发当天不应重复记录
-    fired2 = t.fire(pet, db)
+    fired2 = asyncio.run(t.fire(pet, db))
     assert not fired2
     times = db.get_trigger_times(pet.id, "wakeup")
     assert len(times) == 1
@@ -154,13 +157,13 @@ def test_lunch_timer_at_noon(tmp_path, monkeypatch):
     monkeypatch.setattr(triggers, "datetime", DummyDatetime)
 
     t = LunchTimer()
-    fired = t.fire(pet, db)
+    fired = asyncio.run(t.fire(pet, db))
     assert fired
     times = db.get_trigger_times(pet.id, "lunch")
     assert len(times) == 1
     assert times[0].hour == 12
     # 再次触发当天不应重复记录
-    fired2 = t.fire(pet, db)
+    fired2 = asyncio.run(t.fire(pet, db))
     assert not fired2
     times = db.get_trigger_times(pet.id, "lunch")
     assert len(times) == 1
@@ -172,7 +175,7 @@ def test_run_game_creates_pets(tmp_path):
 
     # 先创建三只宠物（`run_game` 仅负责轮询触发器）
     create_pets(db, num_pets=3)
-    run_game(db)
+    asyncio.run(run_game(db))
     pets = db.list_pets()
     assert len(pets) == 3
     # 确认 run_game 中创建的宠物包含随机分配的 MBTI，格式为 4 个字符（如 "INTJ") 且属于 16 型集合
@@ -223,7 +226,7 @@ def test_run_game_multiple_times_with_time_progression(tmp_path, monkeypatch):
                 return current
 
         monkeypatch.setattr(triggers, "datetime", DummyDatetime)
-        run_game(db)
+        asyncio.run(run_game(db))
 
     pets = db.list_pets()
     for p in pets:

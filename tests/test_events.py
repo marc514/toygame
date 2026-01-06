@@ -1,5 +1,5 @@
+import asyncio
 import os
-
 import pytest
 
 from toygame.db import DB
@@ -41,7 +41,7 @@ def test_gemini_api_event_execute_with_real_api(tmp_path, monkeypatch):
     trigger_name = "test_trigger"
 
     # 执行事件
-    result = event.execute(trigger_name, pet, db)
+    result = asyncio.run(event.execute(trigger_name, pet, db))
 
     # 验证结果
     assert result is True, "API调用应该成功"

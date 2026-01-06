@@ -46,7 +46,7 @@ class Trigger(ABC):
             bool: 是否应该触发
         """
 
-    def fire(self, pet: Pet, db: DB, **kwargs) -> bool:
+    async def fire(self, pet: Pet, db: DB, **kwargs) -> bool:
         """
         Args:
             pet: 触发事件的宠物
@@ -67,7 +67,7 @@ class Trigger(ABC):
 
         # 触发注册的事件
         for event in self.events:
-            event.execute(self.name, pet, db, **kwargs)
+            await event.execute(self.name, pet, db, **kwargs)
 
         return True
 
@@ -125,14 +125,14 @@ class BirthTrigger(Trigger):
 
         return is_birthday
 
-    def fire(self, pet: Pet, db: DB, **kwargs) -> bool:
+    async def fire(self, pet: Pet, db: DB, **kwargs) -> bool:
         """
         覆盖基类的 fire 方法，在触发时传入特定的生日 prompt。
         """
         now = datetime.now()
         date_str = now.strftime("%Y-%m-%d")
         prompt = f"今天是 {date_str}。宠物 {pet.name}（MBTI: {pet.mbti}）正在过生日！请用中文提供一个有趣的庆祝回复。"
-        return super().fire(pet, db, prompt=prompt, **kwargs)
+        return await super().fire(pet, db, prompt=prompt, **kwargs)
 
 
 class TimerTrigger(Trigger):

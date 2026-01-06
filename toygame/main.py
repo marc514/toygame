@@ -7,8 +7,11 @@
 注：为了方便测试，`run_game` 接受一个显式的 `DB` 实例并仅负责轮询触发器；若需要创建宠物，请先调用 `create_pets`。
 """
 
+import asyncio
 import random
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+
+from loguru import logger
 
 from .db import DB
 from .enums import MBTI_LIST
@@ -54,11 +57,10 @@ def create_pets(db: DB, num_pets: int = 3):
     """
     # 创建并插入若干宠物
     pets = [random_pet("pet", i + 1) for i in range(num_pets)]
-    for p in pets:
-        db.add_pet(p)
+    db.add_pets(pets)
 
 
-def run_game(db: DB):
+async def run_game(db: DB):
     """
     `run_game` 不负责创建宠物；若在测试或演示中需要先创建宠物，请使用 `create_pets`；
 
@@ -76,13 +78,20 @@ def run_game(db: DB):
         BedTimer(),
     ]
 
-    # 对数据库中的每个 ID 执行触发器逻辑（todo：并行化 / 优化为时间线触发）
-    for pet in db.list_pets():
+    async def process_pet(pet: Pet):
+        tasks = []
         for trig in triggers:
-            fired = trig.fire(pet, db)
-            if fired:
-                # 仅在交互运行时打印信息，测试中不依赖打印
-                print(f"Triggered {trig.name} for pet {pet.name}")
+            tasks.append(trig.fire(pet, db))
+        await asyncio.gather(*tasks)
+
+    # 并行处理所有宠物
+    pets = db.list_pets()
+    if not pets:
+        logger.info("No pets found in database.")
+        return
+
+    logger.info(f"Starting game loop for {len(pets)} pets...")
+    await asyncio.gather(*(process_pet(p) for p in pets))
 
     # todo: 联合事件触发，关系型数据库
 
@@ -91,7 +100,7 @@ def main():
     """运行游戏，使用文件数据库 'pets.db' 来持久化数据（演示用途）。"""
     db = DB("pets.db")
     create_pets(db, num_pets=5)
-    run_game(db)
+    asyncio.run(run_game(db))
 
 
 if __name__ == "__main__":

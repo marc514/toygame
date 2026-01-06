@@ -75,69 +75,35 @@ class Pet:
         Returns:
             Pet: 构造的宠物对象
         """
-
-        def _get(r, key, idx):
-            try:
-                return r[key]
-            except Exception:
-                return r[idx]
-
-        b = _get(row, "birth_date", 2)
-        if not isinstance(b, str):
-            b = str(b)
-
+        # 优先使用列名访问，提高代码健壮性
         pet = Pet(
-            id=_get(row, "id", 0),
-            name=_get(row, "name", 1),
-            birth_date=b,
-            gender=_get(row, "gender", 3),
-            mbti=_get(row, "mbti", 4) or "",
+            id=row["id"],
+            name=row["name"],
+            birth_date=str(row["birth_date"]),
+            gender=row["gender"],
+            mbti=row["mbti"] if "mbti" in row.keys() else "",
         )
 
-        # 解析触发器时间列（若查询包含这些列）
-        # 使用长度判断以兼容仅查询部分列的情况
-        try:
-            pet.birth_trigger_times = Pet._parse_iso_list(
-                _get(row, "birth_trigger_times", 5)
-            )
-        except Exception:
-            pet.birth_trigger_times = []
-        try:
-            pet.wakeup_trigger_times = Pet._parse_iso_list(
-                _get(row, "wakeup_trigger_times", 6)
-            )
-        except Exception:
-            pet.wakeup_trigger_times = []
-        try:
-            pet.bed_trigger_times = Pet._parse_iso_list(
-                _get(row, "bed_trigger_times", 7)
-            )
-        except Exception:
-            pet.bed_trigger_times = []
-        try:
-            pet.breakfast_trigger_times = Pet._parse_iso_list(
-                _get(row, "breakfast_trigger_times", 8)
-            )
-        except Exception:
-            pet.breakfast_trigger_times = []
-        try:
-            pet.lunch_trigger_times = Pet._parse_iso_list(
-                _get(row, "lunch_trigger_times", 9)
-            )
-        except Exception:
-            pet.lunch_trigger_times = []
-        try:
-            pet.dinner_trigger_times = Pet._parse_iso_list(
-                _get(row, "dinner_trigger_times", 10)
-            )
-        except Exception:
-            pet.dinner_trigger_times = []
+        # 动态解析所有触发器时间列
+        trigger_fields = [
+            "birth_trigger_times",
+            "wakeup_trigger_times",
+            "bed_trigger_times",
+            "breakfast_trigger_times",
+            "lunch_trigger_times",
+            "dinner_trigger_times",
+        ]
+        for field in trigger_fields:
+            if field in row.keys():
+                setattr(pet, field, Pet._parse_iso_list(row[field]))
+            else:
+                setattr(pet, field, [])
 
         # 解析聊天历史
         try:
-            chat_history_text = _get(row, "chat_history", 11)
-            if chat_history_text:
-                pet.chat_history = json.loads(chat_history_text)
+            if "chat_history" in row.keys():
+                text = row["chat_history"]
+                pet.chat_history = json.loads(text) if text else []
             else:
                 pet.chat_history = []
         except Exception:

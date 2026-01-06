@@ -22,7 +22,8 @@ import datetime as _datetime
 import json
 import sqlite3
 from datetime import date
-from typing import List
+from typing import List, Optional, Tuple
+from loguru import logger
 
 from .models import Pet
 
@@ -139,7 +140,9 @@ class DB:
         # 检查列数量是否匹配
         if len(existing_columns) != len(expected_columns):
             # 列数量不匹配，需要重建表
-            print("Table structure mismatch: column count differs. Rebuilding table...")
+            logger.warning(
+                "Table structure mismatch: column count differs. Rebuilding table..."
+            )
             cur.execute("DROP TABLE IF EXISTS pets")
             cur.execute(self._get_create_table_sql())
             self.conn.commit()
@@ -165,7 +168,7 @@ class DB:
 
         if not structure_matches:
             # 表结构不匹配，备份数据后重建表
-            print("Table structure mismatch. Rebuilding table...")
+            logger.warning("Table structure mismatch. Rebuilding table...")
             # 为了保留现有数据，我们先备份现有数据
             cur.execute("SELECT * FROM pets")
             existing_data = cur.fetchall()
@@ -199,11 +202,11 @@ class DB:
 
             self.conn.commit()
         else:
-            print("Table structure matches. No need to rebuild.")
+            logger.info("Table structure matches. No need to rebuild.")
             # 检查是否有chat_history列，如果没有则添加
             has_chat_history = any(col[1] == "chat_history" for col in existing_columns)
             if not has_chat_history:
-                print("Adding chat_history column...")
+                logger.info("Adding chat_history column...")
                 cur.execute(
                     "ALTER TABLE pets ADD COLUMN chat_history TEXT NOT NULL DEFAULT '[]'"
                 )
@@ -264,6 +267,23 @@ class DB:
         pet.id = cur.lastrowid
         self.conn.commit()
         return pet
+
+    def add_pets(self, pets: List[Pet]):
+        """批量添加宠物，提升性能"""
+        cur = self.conn.cursor()
+        data = []
+        for p in pets:
+            if not isinstance(p.birth_date, str):
+                raise TypeError(f"Pet {p.name} birth_date must be ISO string")
+            data.append((p.name, p.birth_date, p.gender, p.mbti or ""))
+
+        cur.executemany(
+            "INSERT INTO pets (name, birth_date, gender, mbti) VALUES (?, ?, ?, ?)",
+            data,
+        )
+        # 注意：executemany 无法直接获取所有 lastrowid，
+        # 如果需要回填 ID，建议在插入后重新查询或使用单条插入循环（若数量不大）。
+        self.conn.commit()
 
     def _read_json_list(self, text: str):
         """
@@ -363,7 +383,9 @@ class DB:
         # 将每一行（sqlite3.Row）传给 Pet.from_row，由其解析触发器时间列
         return [Pet.from_row(r) for r in rows]
 
-    def get_trigger_times(self, pet_id: int, trigger_name: str):
+    def get_trigger_times(
+        self, pet_id: int, trigger_name: str
+    ) -> Optional[List[_datetime.datetime]]:
         """
         Args:
             pet_id: 宠物ID
@@ -416,7 +438,9 @@ class DB:
                 return True
         return False
 
-    def record_trigger_time(self, pet_id: int, trigger_name: str, when_dt):
+    def record_trigger_time(
+        self, pet_id: int, trigger_name: str, when_dt: _datetime.datetime
+    ) -> bool:
         """
         在对应触发器的时间列表中追加一个时间点（when_dt 为 datetime 实例）。
         Args:
@@ -442,8 +466,9 @@ class DB:
         new_text = self._write_json_list(current)
         cur.execute(f"UPDATE pets SET {col} = ? WHERE id = ?", (new_text, pet_id))
         self.conn.commit()
+        return True
 
-    def get_chat_history(self, pet_id: int):
+    def get_chat_history(self, pet_id: int) -> List[dict]:
         """
         获取宠物的聊天历史
         Args:
@@ -462,10 +487,10 @@ class DB:
                 return json.loads(result[0])
             return []
         except Exception as e:
-            print(f"Error getting chat history for pet {pet_id}: {str(e)}")
+            logger.error(f"Error getting chat history for pet {pet_id}: {str(e)}")
             return []
 
-    def update_chat_history(self, pet_id: int, chat_history):
+    def update_chat_history(self, pet_id: int, chat_history: List[dict]) -> bool:
         """
         更新宠物的聊天历史
         Args:
@@ -484,5 +509,5 @@ class DB:
             self.conn.commit()
             return True
         except Exception as e:
-            print(f"Error updating chat history for pet {pet_id}: {str(e)}")
+            logger.error(f"Error updating chat history for pet {pet_id}: {str(e)}")
             return False

@@ -3,9 +3,13 @@
 定义事件基类和各种具体事件实现。
 """
 
+import asyncio
+import os
 import time
 from abc import ABC, abstractmethod
+
 from google import genai
+from loguru import logger
 
 from .db import DB
 from .models import Pet
@@ -15,7 +19,7 @@ class Event(ABC):
     """事件基类，所有事件应继承此类"""
 
     @abstractmethod
-    def execute(self, trigger_name: str, pet: Pet, db: DB, **kwargs) -> bool:
+    async def execute(self, trigger_name: str, pet: Pet, db: DB, **kwargs) -> bool:
         """执行事件，返回是否成功执行"""
         pass
 
@@ -37,13 +41,15 @@ class GeminiAPIEvent(Event):
         try:
             from google import genai
         except ImportError:
-            print("Google genai library not installed. Please install google-genai.")
+            logger.error(
+                "Google genai library not installed. Please install google-genai."
+            )
             raise
 
         self.api_key = api_key
         self.client = genai.Client(api_key=self.api_key)
 
-    def execute(self, trigger_name: str, pet: Pet, db: DB, **kwargs) -> bool:
+    async def execute(self, trigger_name: str, pet: Pet, db: DB, **kwargs) -> bool:
         """
         执行Gemini API调用
 
@@ -65,7 +71,7 @@ class GeminiAPIEvent(Event):
 
             # 2. 加载聊天历史
             chat_history = db.get_chat_history(pet.id) if pet.id is not None else []
-            print(f"chat_history: {chat_history}\n")
+            logger.debug(f"Pet {pet.name} chat history loaded.")
 
             # 3. 执行带重试的 API 调用
             max_retries = 3
@@ -73,33 +79,34 @@ class GeminiAPIEvent(Event):
 
             for attempt in range(max_retries):
                 try:
-                    chat = self.client.chats.create(
+                    # 注意：aio.chats.create 是同步方法，返回 AsyncChat 对象
+                    chat = self.client.aio.chats.create(
                         model="gemini-2.0-flash", history=chat_history
                     )
-                    response = chat.send_message(prompt)
+                    response = await chat.send_message(prompt)
                     break  # 成功则跳出循环
                 except Exception as e:
                     if "54" in str(e) or "reset" in str(e).lower():
                         if attempt < max_retries - 1:
                             wait_time = (attempt + 1) * 2
-                            print(
+                            logger.warning(
                                 f"Connection reset, retrying in {wait_time}s... ({attempt + 1}/{max_retries})"
                             )
-                            time.sleep(wait_time)
+                            await asyncio.sleep(wait_time)
                             continue
                     raise e
 
             if not response:
                 return False
 
-            print(f"Gemini: {response.text}\n")
+            logger.info(f"Gemini response for {pet.name}: {response.text}")
 
             # 4. 更新并保存历史记录
             context = chat.get_history()
             serializable_context = []
             for message in context:
                 message_dict = {
-                    "role": getattr(message, "role", "unknown"),
+                    "role": getattr(message, "role", "user"),
                     "parts": [],
                 }
                 # 获取消息内容部分
@@ -124,5 +131,5 @@ class GeminiAPIEvent(Event):
             return True
 
         except Exception as e:
-            print(f"Error calling Gemini API for pet {pet.name}: {str(e)}")
+            logger.error(f"Error calling Gemini API for pet {pet.name}: {str(e)}")
             return False
